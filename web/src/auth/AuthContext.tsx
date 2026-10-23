@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { callApi, getToken, setOnAuthRequired, setToken } from '../api/client'
+import { ApiError, callApi, getToken, setOnAuthRequired, setToken } from '../api/client'
 import { getGasUrl, setGasUrl, takeGasFromQuery } from '../api/connection'
 import { fetchSystemInfo, REQUIRED_API_VERSION, type SystemInfo } from '../api/system'
 
@@ -39,6 +39,10 @@ interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null)
 
+export function isOldGas(err: unknown): boolean {
+  return err instanceof ApiError && err.code === 'UNKNOWN_ACTION'
+}
+
 function stateFor(info: SystemInfo): ConnectionState {
   if (info.copied) return 'copied'
   if (info.apiVersion < REQUIRED_API_VERSION) return 'outdated'
@@ -73,8 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let info: SystemInfo
     try {
       info = await fetchSystemInfo()
-    } catch {
-      setConnection((c) => ({ ...c, state: 'error', info: null, pending: null }))
+    } catch (err) {
+      // GAS from before system.info existed answers UNKNOWN_ACTION: it needs a redeploy.
+      const state = isOldGas(err) ? 'outdated' : 'error'
+      setConnection((c) => ({ ...c, state, info: null, pending: null }))
       setLoading(false)
       return
     }

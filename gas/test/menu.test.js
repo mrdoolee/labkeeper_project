@@ -95,3 +95,11 @@ test('the directory names the sheet owner', () => {
   const { token } = createAdmin(gas, 'kim', '김운영', 'first-pass-1')
   expect(gas.call('directory.list', {}, token).data).toContainEqual({ id: 'sheet-owner', name: '시트 소유자' })
 })
+
+test('start fresh refuses on the original sheet, so a live school cannot be wiped by mistake', () => {
+  const { token } = createAdmin(gas, 'kim', '김운영', 'first-pass-1')
+  gas.call('records.create', { table: 'Rooms', values: { name: '제1과학실', isLab: true, note: '' } }, token)
+  expect(() => gas.ctx.sheetStartFresh()).toThrow('운영 중인 시트의 사본에서만')
+  expect(gas.sheet('Rooms').length).toBe(2)
+  expect(gas.call('auth.me', {}, token).ok).toBe(true)
+})

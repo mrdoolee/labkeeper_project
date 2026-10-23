@@ -524,9 +524,12 @@ function sheetResetAdminPassword(loginId) {
 }
 
 // Empties every table (headers stay) and makes this spreadsheet the owner.
-// Used when someone copied a sheet that was already in use.
+// Only for a detected copy of a sheet in use, so the live sheet cannot be wiped.
 function sheetStartFresh() {
   return withScriptLock(function () {
+    if (sheetOwnerState() !== 'copied') {
+      throw apiError('INVALID', '운영 중인 시트의 사본에서만 쓸 수 있습니다. 이 시트는 사본이 아니라서 기록을 지우지 않았습니다.');
+    }
     var ss = SpreadsheetApp.getActive();
     Object.keys(TABLES)
       .concat(['AuditLog'])
@@ -635,8 +638,12 @@ function menuStartFresh() {
     ui.ButtonSet.YES_NO,
   );
   if (answer !== ui.Button.YES) return;
-  sheetStartFresh();
-  ui.alert('모든 기록을 지웠습니다. "운영 교사 계정 만들기"로 첫 계정을 만드세요.');
+  try {
+    sheetStartFresh();
+    ui.alert('모든 기록을 지웠습니다. "운영 교사 계정 만들기"로 첫 계정을 만드세요.');
+  } catch (err) {
+    ui.alert(err.message);
+  }
 }
 
 function menuGuide() {

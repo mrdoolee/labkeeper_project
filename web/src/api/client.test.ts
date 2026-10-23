@@ -31,11 +31,23 @@ describe('callApi', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  test('can send to another address (connection test)', async () => {
+  test('can send to another address (connection test) without the login token', async () => {
     const other = 'https://script.google.com/macros/s/Other/exec'
+    setToken('tok-secret')
     reply({ ok: true, data: 1 })
     await callApi('system.info', undefined, other)
     expect(fetchMock.mock.calls[0][0]).toBe(other)
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).token).toBeUndefined()
+  })
+
+  test('AUTH_REQUIRED from another address does not log the user out', async () => {
+    const onAuth = vi.fn()
+    setOnAuthRequired(onAuth)
+    setToken('tok-secret')
+    reply({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'x' } })
+    await callApi('system.info', undefined, 'https://script.google.com/macros/s/Other/exec').catch(() => {})
+    expect(getToken()).toBe('tok-secret')
+    expect(onAuth).not.toHaveBeenCalled()
   })
 
   test('posts action, token and payload as text/plain JSON to the GAS URL', async () => {

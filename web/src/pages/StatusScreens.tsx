@@ -51,7 +51,7 @@ export function CopiedScreen() {
 }
 
 export function OutdatedScreen() {
-  const { recheck } = useAuth()
+  const { recheck, disconnect } = useAuth()
   return (
     <Screen title="학교 시트의 프로그램이 옛 버전입니다">
       <p>
@@ -64,19 +64,25 @@ export function OutdatedScreen() {
         <button className="primary" type="button" onClick={() => recheck()}>
           다시 확인
         </button>
+        <button type="button" onClick={disconnect}>
+          주소 바꾸기
+        </button>
       </div>
     </Screen>
   )
 }
 
 export function NeedsAdminScreen() {
-  const { recheck } = useAuth()
+  const { recheck, disconnect } = useAuth()
   return (
     <Screen title="운영 교사 계정을 먼저 만들어 주세요">
       <p>스프레드시트 메뉴 LabKeeper → 운영 교사 계정 만들기에서 만든 뒤 다시 확인을 누르세요.</p>
       <div className="toolbar">
         <button className="primary" type="button" onClick={() => recheck()}>
           다시 확인
+        </button>
+        <button type="button" onClick={disconnect}>
+          주소 바꾸기
         </button>
       </div>
     </Screen>
@@ -85,19 +91,26 @@ export function NeedsAdminScreen() {
 
 export function SwitchSchoolScreen() {
   const { connection, acceptSwitch, rejectSwitch } = useAuth()
+  const current = connection.info ? schoolLabel(connection.info) : '확인할 수 없음'
+  const next = connection.pending?.info ? schoolLabel(connection.pending.info) : '확인할 수 없음'
   return (
     <Screen title="다른 학교 스프레드시트로 연결을 바꿀까요?">
-      <p>열어 본 접속 링크가 지금 연결된 곳과 다른 스프레드시트를 가리킵니다. 믿을 수 있는 링크인지 확인해 주세요.</p>
+      <p>열어 본 접속 링크가 지금 연결된 곳과 다른 스프레드시트를 가리킵니다. 운영 교사에게 직접 받은 링크인지 확인해 주세요.</p>
       <ul>
-        <li>지금: {schoolLabel(connection.info)}</li>
-        <li>새 링크: {connection.pending?.info ? schoolLabel(connection.pending.info) : '확인할 수 없음'}</li>
+        <li>지금: {current}</li>
+        <li>새 링크: {next}</li>
       </ul>
+      {connection.info && connection.pending?.info && current === next && (
+        <div role="alert" className="error">
+          이름은 같지만 다른 스프레드시트입니다. 운영 교사에게 받은 링크가 맞는지 꼭 확인해 주세요.
+        </div>
+      )}
       <div className="toolbar">
-        <button className="primary" type="button" onClick={() => acceptSwitch()}>
-          바꾸기
-        </button>
-        <button type="button" onClick={() => rejectSwitch()}>
+        <button className="primary" type="button" onClick={() => rejectSwitch()}>
           그대로 두기
+        </button>
+        <button type="button" onClick={() => acceptSwitch()}>
+          바꾸기
         </button>
       </div>
     </Screen>

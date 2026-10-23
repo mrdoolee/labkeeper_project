@@ -141,6 +141,40 @@ describe('connecting the school spreadsheet', () => {
     expect(await screen.findByRole('heading', { name: '로그인' })).toBeInTheDocument()
   })
 
+  test('a school still on the old GAS (no system.info) is told to redeploy, not that it cannot connect', async () => {
+    serve({
+      'system.info': () => {
+        throw new ApiError('UNKNOWN_ACTION', '알 수 없는 요청입니다.')
+      },
+    })
+    renderApp()
+    expect(await screen.findByRole('heading', { name: '학교 시트의 프로그램이 옛 버전입니다' })).toBeInTheDocument()
+  })
+
+  test('testing an address whose GAS is too old says so', async () => {
+    setGasUrl(null)
+    serve({
+      'system.info': () => {
+        throw new ApiError('UNKNOWN_ACTION', '알 수 없는 요청입니다.')
+      },
+    })
+    renderApp()
+    await userEvent.type(await screen.findByLabelText('GAS 웹 앱 주소'), A)
+    await userEvent.click(screen.getByRole('button', { name: '연결 테스트' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('옛 버전')
+  })
+
+  test.each([
+    ['needsSetup', { needsSetup: true }, '운영 교사 계정을 먼저 만들어 주세요'],
+    ['old version', { apiVersion: 1 }, '학교 시트의 프로그램이 옛 버전입니다'],
+  ])('the %s screen offers 주소 바꾸기', async (_name, info, heading) => {
+    serve({ 'system.info': { ...READY, ...info } })
+    renderApp()
+    await screen.findByRole('heading', { name: heading })
+    await userEvent.click(screen.getByRole('button', { name: '주소 바꾸기' }))
+    expect(await screen.findByRole('heading', { name: '스프레드시트 연결' })).toBeInTheDocument()
+  })
+
   test('다른 스프레드시트에 연결 returns to the connect screen', async () => {
     serve({})
     renderApp()
@@ -187,6 +221,23 @@ describe('school link (?gas=)', () => {
     expect(await screen.findByText('연결된 학교: 충주고등학교')).toBeInTheDocument()
     expect(localStorage.getItem('labkeeper.gasUrl')).toBe(B)
     expect(getToken()).toBeNull()
+  })
+
+  test('a link whose school name copies the current one is called out, and keeping is the main choice', async () => {
+    history.replaceState(null, '', '/?gas=' + encodeURIComponent(B))
+    serve({ 'system.info': READY })
+    renderApp()
+    await screen.findByRole('heading', { name: '다른 학교 스프레드시트로 연결을 바꿀까요?' })
+    expect(screen.getByText(/이름은 같지만 다른 스프레드시트입니다/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '그대로 두기' })).toHaveClass('primary')
+    expect(screen.getByRole('button', { name: '바꾸기' })).not.toHaveClass('primary')
+  })
+
+  test('when the current school cannot be reached the switch screen says so', async () => {
+    history.replaceState(null, '', '/?gas=' + encodeURIComponent(B))
+    serve({ 'system.info': (_p: Record<string, unknown>, url?: string | null) => (url === B ? { ...READY, schoolName: '충주고등학교' } : networkDown()) })
+    renderApp()
+    expect(await screen.findByText('지금: 확인할 수 없음')).toBeInTheDocument()
   })
 
   test('a link to the same school changes nothing', async () => {

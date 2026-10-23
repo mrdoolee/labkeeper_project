@@ -39,15 +39,19 @@ export function setOnAuthRequired(fn: () => void): void {
   onAuthRequired = fn
 }
 
-/** Sends to the connected school's GAS, or to `url` (used to test an address before saving it). */
+/**
+ * Sends to the connected school's GAS, or to `url` (used to test an address
+ * before saving it). The login token only ever goes to the saved school.
+ */
 export async function callApi<T>(action: string, payload?: object, url: string | null = getGasUrl()): Promise<T> {
   if (!url) throw new ApiError('NO_CONNECTION', '연결된 스프레드시트가 없습니다.')
+  const own = url === getGasUrl()
   let body: { ok: boolean; data?: T; error?: { code: string; message: string } }
   try {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action, token: getToken() ?? undefined, payload }),
+      body: JSON.stringify({ action, token: own ? (getToken() ?? undefined) : undefined, payload }),
     })
     body = await res.json()
   } catch {
@@ -55,7 +59,7 @@ export async function callApi<T>(action: string, payload?: object, url: string |
   }
   if (body.ok) return body.data as T
   const { code, message } = body.error ?? { code: 'SERVER_ERROR', message: '서버 오류가 발생했습니다.' }
-  if (code === 'AUTH_REQUIRED') {
+  if (code === 'AUTH_REQUIRED' && own) {
     setToken(null)
     onAuthRequired()
   }

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { isValidGasUrl } from '../api/connection'
 import { fetchSystemInfo, GUIDE_URL, schoolLabel, type SystemInfo } from '../api/system'
-import { useAuth } from '../auth/AuthContext'
+import { isOldGas, useAuth } from '../auth/AuthContext'
 import { Field } from '../components/Field'
 import { Brand } from '../components/Brand'
 
@@ -10,7 +10,7 @@ export default function ConnectPage() {
   const { connection, connect } = useAuth()
   const [url, setUrl] = useState(connection.lastUrl ?? '')
   const [tested, setTested] = useState<{ url: string; info: SystemInfo } | null>(null)
-  const [problem, setProblem] = useState<'format' | 'failed' | null>(null)
+  const [problem, setProblem] = useState<'format' | 'failed' | 'old' | null>(null)
   const [busy, setBusy] = useState(false)
 
   async function test(e: FormEvent) {
@@ -22,8 +22,8 @@ export default function ConnectPage() {
     setBusy(true)
     try {
       setTested({ url: value, info: await fetchSystemInfo(value) })
-    } catch {
-      setProblem('failed')
+    } catch (err) {
+      setProblem(isOldGas(err) ? 'old' : 'failed')
     } finally {
       setBusy(false)
     }
@@ -38,6 +38,15 @@ export default function ConnectPage() {
         {problem === 'format' && (
           <div role="alert" className="error">
             구글 Apps Script 웹 앱 주소(https://script.google.com/…/exec)를 넣어 주세요.
+          </div>
+        )}
+        {problem === 'old' && (
+          <div role="alert" className="error">
+            이 스프레드시트의 프로그램이 옛 버전입니다.{' '}
+            <a href={GUIDE_URL} target="_blank" rel="noreferrer">
+              설치 안내
+            </a>
+            의 '코드 업데이트' 순서대로 다시 배포한 뒤 연결해 주세요.
           </div>
         )}
         {problem === 'failed' && (
