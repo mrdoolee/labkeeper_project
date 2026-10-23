@@ -96,12 +96,18 @@ function requireAdmin(token) {
   return user;
 }
 
+// Setup is open only while the Users sheet has no rows at all, so editing
+// the sheet (e.g. renaming the 'active' header) can never reopen it.
+function hasAnyUser() {
+  return dbList('Users', { includeDeleted: true }).length > 0;
+}
+
 function setupStatus() {
-  return { needsSetup: activeUsers().length === 0 };
+  return { needsSetup: !hasAnyUser() };
 }
 
 function setupCreateAdmin(payload) {
-  if (activeUsers().length > 0) throw apiError('SETUP_DONE', '이미 운영 교사 계정이 있습니다.');
+  if (hasAnyUser()) throw apiError('SETUP_DONE', '이미 운영 교사 계정이 있습니다.');
   var loginId = normalizeLoginId(payload.loginId);
   var name = String(payload.name || '').trim();
   checkLoginId(loginId);

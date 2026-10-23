@@ -144,3 +144,20 @@ describe('changePassword', () => {
     expect(gas.call('auth.me', {}, token).data.mustChangePassword).toBe(false)
   })
 })
+
+describe('setup cannot be reopened', () => {
+  test('renaming the active header in the sheet does not let anyone create a new admin', () => {
+    setupAdmin()
+    const sheet = gas.fakes.sheets.get('Users')
+    sheet.data[0][sheet.data[0].indexOf('active')] = '사용'
+    expect(gas.call('setup.status').data).toEqual({ needsSetup: false })
+    expect(gas.call('setup.createAdmin', { loginId: 'evil', name: 'x', password: 'takeover-123' }).error.code).toBe('SETUP_DONE')
+  })
+
+  test('a Users sheet with only deactivated people is not a fresh install', () => {
+    const { user } = setupAdmin()
+    gas.ctx.dbUpdate('Users', user.id, { active: false }, { id: 'x', name: 'x' })
+    expect(gas.call('setup.status').data).toEqual({ needsSetup: false })
+    expect(gas.call('setup.createAdmin', { loginId: 'evil', name: 'x', password: 'takeover-123' }).error.code).toBe('SETUP_DONE')
+  })
+})
