@@ -12,7 +12,7 @@ export function loadGas() {
   const fakes = createFakes()
   const logs = []
   const quietConsole = { log: (...a) => logs.push(a), error: (...a) => logs.push(a), warn: (...a) => logs.push(a) }
-  const ctx = vm.createContext({ ...fakes.globals, console: quietConsole, JSON, Math, Object, Array, String, Number, Boolean, Error })
+  const ctx = vm.createContext({ ...fakes.globals, console: quietConsole })
   for (const file of fs.readdirSync(srcDir).filter((f) => f.endsWith('.js')).sort()) {
     vm.runInContext(fs.readFileSync(path.join(srcDir, file), 'utf8'), ctx, { filename: file })
   }
