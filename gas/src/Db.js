@@ -19,6 +19,8 @@ function openTable(table) {
     return header.indexOf(c) < 0;
   });
   if (missing.length) {
+    var extraColumns = header.length + missing.length - sheet.getMaxColumns();
+    if (extraColumns > 0) sheet.insertColumnsAfter(sheet.getMaxColumns(), extraColumns);
     sheet.getRange(1, header.length + 1, 1, missing.length).setValues([missing.map(toCell)]);
     header = header.concat(missing);
   }
@@ -106,6 +108,9 @@ function dbGet(table, id) {
 function appendObjects(t, objects) {
   if (!objects.length) return;
   var start = Math.max(t.sheet.getLastRow(), 1) + 1;
+  // setValues does not grow the sheet (a new sheet has 1000 rows), so add rows first.
+  var extraRows = start + objects.length - 1 - t.sheet.getMaxRows();
+  if (extraRows > 0) t.sheet.insertRowsAfter(t.sheet.getMaxRows(), extraRows);
   t.sheet.getRange(start, 1, objects.length, t.header.length).setValues(
     objects.map(function (obj) {
       return t.header.map(function (column) {

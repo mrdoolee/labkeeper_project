@@ -158,3 +158,28 @@ describe('audit of users', () => {
     expect(text).toContain('김교사')
   })
 })
+
+describe('sheet size', () => {
+  test('keeps writing past the 1000-row and 26-column size of a new sheet', () => {
+    const rows = []
+    for (let i = 0; i < 1100; i++) rows.push({ cabinetId: 'c1', row: 1, col: 1, name: 'z' + i })
+    db.dbCreateMany('Zones', rows, u)
+    db.dbCreate('Zones', { cabinetId: 'c1', row: 2, col: 2, name: 'last' }, u)
+    expect(db.dbList('Zones')).toHaveLength(1101)
+    expect(gas.sheet('AuditLog').length).toBe(1102)
+  })
+
+  test('adds columns when someone has filled all 26 columns', () => {
+    db.dbCreate('Rooms', { name: '과학실' }, u)
+    const sheet = gas.fakes.sheets.get('Rooms')
+    const noteAt = sheet.data[0].indexOf('note')
+    sheet.data = sheet.data.map((line, i) => {
+      const copy = line.filter((_, c) => c !== noteAt)
+      while (copy.length < 26) copy.push(i === 0 ? '메모' + copy.length : '')
+      return copy
+    })
+    db.dbCreate('Rooms', { name: '준비실', note: '2층' }, u)
+    expect(db.dbList('Rooms').map((r) => r.note)).toEqual(['', '2층'])
+  })
+})
+

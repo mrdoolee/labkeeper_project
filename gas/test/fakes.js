@@ -51,8 +51,26 @@ class FakeSheet {
     this.name = name
     this.data = []
     this.writeCalls = 0
+    // New Google sheets are 1000 rows × 26 columns; writing outside throws.
+    this.maxRows = 1000
+    this.maxColumns = 26
+  }
+  getMaxRows() {
+    return this.maxRows
+  }
+  getMaxColumns() {
+    return this.maxColumns
+  }
+  insertRowsAfter(afterPosition, howMany) {
+    this.maxRows += howMany
+  }
+  insertColumnsAfter(afterPosition, howMany) {
+    this.maxColumns += howMany
   }
   set(row, col, v) {
+    if (row > this.maxRows || col > this.maxColumns) {
+      throw new Error('The coordinates of the range are outside the dimensions of the sheet.')
+    }
     while (this.data.length < row) this.data.push([])
     const line = this.data[row - 1]
     while (line.length < col) line.push('')
@@ -76,6 +94,7 @@ class FakeSheet {
   appendRow(values) {
     this.writeCalls++
     const row = this.data.length + 1
+    if (row > this.maxRows) this.maxRows = row // appendRow grows the sheet in Apps Script
     values.forEach((v, i) => this.set(row, i + 1, v))
     return this
   }
