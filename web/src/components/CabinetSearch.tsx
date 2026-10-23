@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Search } from 'lucide-react'
 import { records, type Cabinet, type Room } from '../api/records'
 
 /** Top-bar search: type part of a cabinet name, pick "room › cabinet", jump there. */
@@ -25,6 +26,7 @@ export default function CabinetSearch() {
 
   return (
     <div className="cabinet-search">
+      <Search className="search-icon" size={16} aria-hidden="true" />
       <input
         aria-label="보관장 찾기"
         placeholder="보관장 찾기"
