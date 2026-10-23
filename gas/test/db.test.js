@@ -183,3 +183,14 @@ describe('sheet size', () => {
   })
 })
 
+describe('delete and restore history', () => {
+  test('a delete keeps what the row looked like, and a restore shows it again', () => {
+    const row = db.dbCreate('Rooms', { name: '준비실', isLab: false }, u)
+    db.dbSoftDelete('Rooms', row.id, u2)
+    db.dbRestore('Rooms', row.id, u)
+    const [, del, res] = audit()
+    expect(JSON.parse(del.before)).toMatchObject({ name: '준비실', isLab: false, deleted: false })
+    expect(JSON.parse(res.after)).toMatchObject({ name: '준비실', deleted: false })
+  })
+})
+

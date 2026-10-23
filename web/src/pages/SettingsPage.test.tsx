@@ -104,4 +104,21 @@ describe('HistoryDialog', () => {
     await userEvent.click(await screen.findByRole('button', { name: '닫기' }))
     expect(onClose).toHaveBeenCalled()
   })
+
+  test('the whole-table view names each record, including deleted ones', async () => {
+    api.mockImplementation(async (action: string) => {
+      if (action !== 'audit.list') throw new Error('unexpected ' + action)
+      return [
+        { id: 'a3', at: '2026-03-04T01:00:00.000Z', userId: 'u2', userName: '이교사', table: 'Rooms', recordId: 'r2', action: 'delete', before: { name: '준비실' }, after: null },
+        { ...HISTORY[0] },
+      ]
+    })
+    render(<HistoryDialog table="Rooms" names={{ r1: '제1과학실' }} onClose={() => {}} />)
+    const rows = await within(await screen.findByRole('dialog')).findAllByRole('row')
+    expect(rows[0]).toHaveTextContent('대상')
+    expect(rows[1]).toHaveTextContent('준비실')
+    expect(rows[1]).toHaveTextContent('삭제')
+    expect(rows[2]).toHaveTextContent('제1과학실')
+  })
 })
+

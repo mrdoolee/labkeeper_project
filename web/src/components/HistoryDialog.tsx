@@ -61,7 +61,25 @@ function changes(entry: AuditEntry): string[] {
   return Object.keys(entry.after).map((key) => `${FIELD_LABELS[key] ?? key}: ${show(entry.before?.[key])} → ${show(entry.after?.[key])}`)
 }
 
-export default function HistoryDialog({ table, recordId, onClose }: { table: string; recordId?: string; onClose: () => void }) {
+/** Name of the record an entry is about: from the caller's names, else from the entry itself. */
+function targetName(e: AuditEntry, names?: Record<string, string>): string {
+  const fromEntry = (e.after?.name ?? e.before?.name) as string | undefined
+  return names?.[e.recordId] ?? fromEntry ?? (e.table === 'Settings' ? FIELD_LABELS[e.recordId] ?? e.recordId : '(이름 없음)')
+}
+
+export default function HistoryDialog({
+  table,
+  recordId,
+  names,
+  onClose,
+}: {
+  table: string
+  recordId?: string
+  /** id → name, used to label rows in the whole-table view. */
+  names?: Record<string, string>
+  onClose: () => void
+}) {
+  const wholeTable = !recordId
   const [entries, setEntries] = useState<AuditEntry[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -90,6 +108,7 @@ export default function HistoryDialog({ table, recordId, onClose }: { table: str
               <tr>
                 <th>일시</th>
                 <th>사람</th>
+                {wholeTable && <th>대상</th>}
                 <th>동작</th>
                 <th>바뀐 항목</th>
               </tr>
@@ -99,6 +118,7 @@ export default function HistoryDialog({ table, recordId, onClose }: { table: str
                 <tr key={e.id}>
                   <td>{formatTime(e.at)}</td>
                   <td>{e.userName}</td>
+                  {wholeTable && <td>{targetName(e, names)}</td>}
                   <td>{ACTION_LABELS[e.action] ?? e.action}</td>
                   <td>
                     {changes(e).map((line) => (
@@ -116,14 +136,24 @@ export default function HistoryDialog({ table, recordId, onClose }: { table: str
 }
 
 /** A "변경 이력" button that opens the dialog. */
-export function HistoryButton({ table, recordId, label = '변경 이력' }: { table: string; recordId?: string; label?: string }) {
+export function HistoryButton({
+  table,
+  recordId,
+  names,
+  label = '변경 이력',
+}: {
+  table: string
+  recordId?: string
+  names?: Record<string, string>
+  label?: string
+}) {
   const [open, setOpen] = useState(false)
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}>
         {label}
       </button>
-      {open && <HistoryDialog table={table} recordId={recordId} onClose={() => setOpen(false)} />}
+      {open && <HistoryDialog table={table} recordId={recordId} names={names} onClose={() => setOpen(false)} />}
     </>
   )
 }

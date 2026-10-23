@@ -9,6 +9,8 @@ export interface Stamped {
   updatedBy: string
   updatedAt: string
   deleted: boolean
+  deletedBy: string
+  deletedAt: string
 }
 
 export interface Room extends Stamped {

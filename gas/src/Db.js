@@ -195,13 +195,13 @@ function dbUpdate(table, id, changes, user, options) {
 function dbSoftDelete(table, id, user) {
   var now = nowIso();
   var result = writeFields(table, id, { deleted: true, deletedBy: user.id, deletedAt: now, updatedBy: user.id, updatedAt: now });
-  dbAudit(user, table, id, 'delete', null, null);
+  dbAudit(user, table, id, 'delete', result.before, null);
   return result.after;
 }
 
 function dbRestore(table, id, user) {
   var result = writeFields(table, id, { deleted: false, deletedBy: '', deletedAt: '', updatedBy: user.id, updatedAt: nowIso() });
-  dbAudit(user, table, id, 'restore', null, null);
+  dbAudit(user, table, id, 'restore', null, result.after);
   return result.after;
 }
 

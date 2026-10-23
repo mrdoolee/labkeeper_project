@@ -379,3 +379,9 @@ td .toolbar {
   margin: 0;
   flex-wrap: nowrap;
 }
+
+.deleted-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 8px;
+}

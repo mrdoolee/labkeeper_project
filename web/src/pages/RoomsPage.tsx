@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { records, type Room } from '../api/records'
 import { ErrorMessage, errorText } from '../components/Field'
 import { useBusy } from '../components/useBusy'
+import { DeletedList } from '../components/DeletedList'
 import { HistoryButton } from '../components/HistoryDialog'
 import { LastEdited, useDirectory } from '../components/LastEdited'
 
@@ -61,7 +62,7 @@ export default function RoomsPage() {
       <div className="toolbar">
         <h1>교실·보관장</h1>
         <span className="spacer" />
-        <HistoryButton table="Rooms" />
+        <HistoryButton table="Rooms" names={Object.fromEntries(rooms.map((r) => [r.id, r.name]))} />
       </div>
       <ErrorMessage message={error} />
       <form className="card toolbar" onSubmit={add} aria-label="새 교실">
@@ -125,6 +126,7 @@ export default function RoomsPage() {
           ))}
         </tbody>
       </table>
+      <DeletedList table="Rooms" label="교실" nameOf={nameOf} onRestored={load} />
     </section>
   )
 }

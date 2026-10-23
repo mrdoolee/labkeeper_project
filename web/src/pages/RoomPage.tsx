@@ -5,6 +5,7 @@ import { CABINET_TYPES, copyZones, planZones, type CabinetType } from '../domain
 import { ErrorMessage, errorText } from '../components/Field'
 import { NotFound } from '../components/NotFound'
 import { useBusy } from '../components/useBusy'
+import { DeletedList } from '../components/DeletedList'
 import { HistoryButton } from '../components/HistoryDialog'
 import { LastEdited, useDirectory } from '../components/LastEdited'
 
@@ -79,7 +80,7 @@ export default function RoomPage() {
         <h1>{room.name}</h1>
         {room.isLab && <span className="badge">과학실</span>}
         <span className="spacer" />
-        <HistoryButton table="Cabinets" />
+        <HistoryButton table="Cabinets" names={Object.fromEntries(cabinets.map((c) => [c.id, c.name]))} />
       </div>
       <ErrorMessage message={error} />
       <form className="card toolbar" onSubmit={add} aria-label="새 보관장">
@@ -153,6 +154,7 @@ export default function RoomPage() {
           ))}
         </tbody>
       </table>
+      <DeletedList table="Cabinets" label="보관장" where={{ roomId }} nameOf={nameOf} onRestored={load} />
     </section>
   )
 }

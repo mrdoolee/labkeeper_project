@@ -112,6 +112,22 @@ describe('RoomsPage', () => {
   })
 })
 
+describe('deleted rooms', () => {
+  test('can be listed with who deleted them and restored', async () => {
+    fake.tables.Rooms.push({ id: 'r9', name: '옛 준비실', isLab: false, deleted: true, deletedBy: 'u1', deletedAt: '2026-03-02T09:00:00.000Z', updatedBy: 'u1', updatedAt: '2026-03-02T09:00:00.000Z' })
+    renderRooms()
+    await screen.findByRole('link', { name: '제1과학실' })
+    expect(screen.queryByText('옛 준비실')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByLabelText('삭제된 교실 보기'))
+    const deleted = await screen.findByRole('table', { name: '삭제된 교실' })
+    expect(within(deleted).getByText('옛 준비실')).toBeInTheDocument()
+    expect(within(deleted).getByText(/김운영/)).toBeInTheDocument()
+    await userEvent.click(within(deleted).getByRole('button', { name: '복구' }))
+    expect(fake.called('records.restore')).toEqual([{ table: 'Rooms', id: 'r9' }])
+    expect(await screen.findByRole('link', { name: '옛 준비실' })).toBeInTheDocument()
+  })
+})
+
 describe('CabinetSearch', () => {
   test('finds cabinets by part of the name as "room › cabinet" and opens one', async () => {
     render(

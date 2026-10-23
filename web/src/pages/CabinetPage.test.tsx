@@ -88,6 +88,19 @@ describe('RoomPage', () => {
   })
 })
 
+describe('deleted cabinets', () => {
+  test('can be listed and restored from the room page', async () => {
+    fake.tables.Cabinets.push({ id: 'c9', roomId: 'r1', name: '옛 시약장', type: 'general', locked: false, rows: 1, cols: 1, ...stamp, deleted: true, deletedBy: 'u1', deletedAt: stamp.updatedAt })
+    renderAt('/rooms/r1')
+    await screen.findByRole('link', { name: 'A 시약장' })
+    await userEvent.click(screen.getByLabelText('삭제된 보관장 보기'))
+    const deleted = await screen.findByRole('table', { name: '삭제된 보관장' })
+    await userEvent.click(within(deleted).getByRole('button', { name: '복구' }))
+    expect(fake.called('records.restore')).toEqual([{ table: 'Cabinets', id: 'c9' }])
+    expect(await screen.findByRole('link', { name: '옛 시약장' })).toBeInTheDocument()
+  })
+})
+
 describe('CabinetPage', () => {
   test('draws the grid top shelf first and shows where the cabinet is', async () => {
     renderAt('/cabinets/c1')
