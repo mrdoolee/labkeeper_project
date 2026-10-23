@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import CabinetSearch from './CabinetSearch'
 
 export default function Layout() {
   const { user, logout } = useAuth()
@@ -16,6 +17,7 @@ export default function Layout() {
       </nav>
       <div className="main">
         <header className="topbar">
+          <CabinetSearch />
           <span className="spacer" />
           <span>{user?.name} 선생님</span>
           <span className="meta">{user?.role === 'admin' ? '운영 교사' : '일반 교사'}</span>

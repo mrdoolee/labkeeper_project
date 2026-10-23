@@ -164,4 +164,12 @@ describe('routes', () => {
     renderApp('/settings')
     expect(await screen.findByRole('heading', { name: '설정' })).toBeInTheDocument()
   })
+
+  test('rooms and the top-bar cabinet search are available to everyone', async () => {
+    vi.mocked(getToken).mockReturnValue('t')
+    serve({ 'setup.status': { needsSetup: false }, 'auth.me': teacher, 'records.list': [], 'directory.list': [] })
+    renderApp('/rooms')
+    expect(await screen.findByRole('heading', { name: '교실·보관장' })).toBeInTheDocument()
+    expect(screen.getByLabelText('보관장 찾기')).toBeInTheDocument()
+  })
 })
