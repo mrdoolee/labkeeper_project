@@ -112,7 +112,8 @@ export default function RoomsPage() {
               <td>
                 <LastEdited by={room.updatedBy} at={room.updatedAt} nameOf={nameOf} />
               </td>
-              <td className="toolbar">
+              <td>
+                <div className="toolbar">
                 <button type="button" onClick={() => rename(room)}>
                   이름 변경
                 </button>
@@ -120,6 +121,7 @@ export default function RoomsPage() {
                   삭제
                 </button>
                 <HistoryButton table="Rooms" recordId={room.id} label="이력" />
+                </div>
               </td>
             </tr>
           ))}

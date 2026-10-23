@@ -35,3 +35,13 @@
 - 사용자와는 한국어로 대화한다.
 - 새로 확정된 결정은 이 파일과 README.md의 진행 상황에 반영한다.
 - 프로젝트 스킬(superpowers, ponytail, ui-ux-pro-max)의 목록과 출처는 docs/claude-skills.md를 참고한다.
+
+## 개발 명령
+
+- GAS 테스트: `cd gas && npm test` (gas/src를 node:vm과 가짜 구글 서비스로 실행. gas/test/fakes.js는 시트의 입력 해석을 흉내 낸다)
+- 로컬 GAS 서버: `cd gas && npm run dev` (http://127.0.0.1:8787, 메모리 저장)
+- 화면 테스트: `cd web && npm test`, 타입 검사 `npx tsc -b`, 빌드 `npm run build`
+- 통합 시험: `cd web && npm run e2e` (두 서버를 자동 실행, 설치된 Chromium 사용, 스크린샷은 docs/screenshots/m1/)
+- GAS 코드는 모듈 없는 전역 함수(V8). 파일 로드 순서가 보장되지 않으므로 최상위에서는 정의만 하고, 액션은 Code.js의 registerActions()에서 모은다.
+- 보관 분류·보관장 종류 id는 gas/src/Schema.js와 web/src/domain/storage.ts 두 곳에 있다. 바꿀 때 함께 바꾼다(GAS 테스트가 목록을 확인한다).
+

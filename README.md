@@ -62,7 +62,17 @@
 - [x] 매뉴얼 검토 후 결정 사항 확정 (충북 양식 기본, 중·고 기준, 업체 MSDS 원칙 등)
 - [x] 로그인·권한 방식 결정: 교사별 아이디·비밀번호, 운영 교사가 계정 생성·초기화
 - [x] 1차 개발 범위 확정: 시약 관리 + 충북 서식 1·3·4·5 ([docs/phase1-scope.md](docs/phase1-scope.md))
-- [ ] 세부 기능 정의
-- [ ] 스프레드시트 데이터 구조 설계
-- [ ] 프로젝트 초기 세팅 (Vite + React + GAS)
-- [ ] 초기 화면 구성
+- [x] 1차 설계 문서 (docs/superpowers/specs/2026-10-23-labkeeper-phase1-design.md)
+- [x] M1 기본 틀: 로그인·계정 관리, 설정, 교실·보관장·구역, 변경 이력 (docs/superpowers/plans/2026-10-23-m1-foundation.md)
+- [ ] M1 실제 배포 확인 (GAS 배포 + Vercel 연결, [docs/setup-guide.md](docs/setup-guide.md))
+- [ ] M2 시약과 대장
+- [ ] M3 폐수와 점검
+- [ ] M4 MSDS와 경고표지
+- [ ] M5 보관 위치 추천과 정돈
+
+## 설치와 개발
+
+- 설치(GAS 배포, Vercel 연결): [docs/setup-guide.md](docs/setup-guide.md)
+- 저장소 구성
+  - `gas/`: Apps Script 서버 코드(`gas/src`)와 테스트. `npm test`, `npm run dev`(로컬 개발 서버)
+  - `web/`: 화면(Vite + React + TypeScript). `npm test`, `npm run dev`, `npm run build`, `npm run e2e`(통합 시험)

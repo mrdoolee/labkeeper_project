@@ -102,7 +102,8 @@ export default function UsersPage() {
                 </select>
               </td>
               <td>{u.active ? (u.mustChangePassword ? '사용 중 (비밀번호 변경 전)' : '사용 중') : '사용 중지됨'}</td>
-              <td className="toolbar">
+              <td>
+                <div className="toolbar">
                 <button
                   type="button"
                   onClick={() =>
@@ -118,6 +119,7 @@ export default function UsersPage() {
                   {u.active ? '사용 중지' : '다시 사용'}
                 </button>
                 <HistoryButton table="Users" recordId={u.id} label="이력" />
+                </div>
               </td>
             </tr>
           ))}

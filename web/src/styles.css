@@ -374,3 +374,8 @@ th {
 .check {
   display: block;
 }
+
+td .toolbar {
+  margin: 0;
+  flex-wrap: nowrap;
+}

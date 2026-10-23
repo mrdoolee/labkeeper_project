@@ -132,7 +132,8 @@ export default function RoomPage() {
               <td>
                 <LastEdited by={c.updatedBy} at={c.updatedAt} nameOf={nameOf} />
               </td>
-              <td className="toolbar">
+              <td>
+                <div className="toolbar">
                 <button type="button" onClick={() => copy(c)}>
                   복제
                 </button>
@@ -140,6 +141,7 @@ export default function RoomPage() {
                   삭제
                 </button>
                 <HistoryButton table="Cabinets" recordId={c.id} label="이력" />
+                </div>
               </td>
             </tr>
           ))}
