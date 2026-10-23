@@ -102,31 +102,59 @@ function dbGet(table, id) {
   return found ? typed(table, found.record) : null;
 }
 
+// Appends objects as rows in one sheet write (Apps Script is slow per call).
+function appendObjects(t, objects) {
+  if (!objects.length) return;
+  var start = Math.max(t.sheet.getLastRow(), 1) + 1;
+  t.sheet.getRange(start, 1, objects.length, t.header.length).setValues(
+    objects.map(function (obj) {
+      return t.header.map(function (column) {
+        return toCell(obj[column] === undefined ? '' : obj[column]);
+      });
+    }),
+  );
+}
+
 // options.skipAudit: the caller writes its own audit entry (Settings does,
 // so its history is keyed by setting name).
 function dbCreate(table, values, user, options) {
-  checkColumns(table, values);
+  return dbCreateMany(table, [values], user, options)[0];
+}
+
+function dbCreateMany(table, valuesList, user, options) {
+  valuesList.forEach(function (values) {
+    checkColumns(table, values);
+  });
   var t = openTable(table);
   var now = nowIso();
-  var row = {};
-  columnsOf(table).forEach(function (column) {
-    row[column] = values[column] === undefined ? '' : values[column];
+  var rows = valuesList.map(function (values) {
+    var row = {};
+    columnsOf(table).forEach(function (column) {
+      row[column] = values[column] === undefined ? '' : values[column];
+    });
+    row.id = Utilities.getUuid();
+    row.createdBy = user.id;
+    row.createdAt = now;
+    row.updatedBy = user.id;
+    row.updatedAt = now;
+    row.deleted = false;
+    row.deletedBy = '';
+    row.deletedAt = '';
+    return row;
   });
-  row.id = Utilities.getUuid();
-  row.createdBy = user.id;
-  row.createdAt = now;
-  row.updatedBy = user.id;
-  row.updatedAt = now;
-  row.deleted = false;
-  row.deletedBy = '';
-  row.deletedAt = '';
-  t.sheet.appendRow(
-    t.header.map(function (column) {
-      return toCell(row[column] === undefined ? '' : row[column]);
-    }),
-  );
-  var created = typed(table, row);
-  if (!(options && options.skipAudit)) dbAudit(user, table, created.id, 'create', null, created);
+  appendObjects(t, rows);
+  var created = rows.map(function (row) {
+    return typed(table, row);
+  });
+  if (!(options && options.skipAudit)) {
+    dbAuditMany(
+      user,
+      table,
+      created.map(function (row) {
+        return { recordId: row.id, action: 'create', before: null, after: row };
+      }),
+    );
+  }
   return created;
 }
 
@@ -182,21 +210,25 @@ function withoutSecrets(values) {
 }
 
 function dbAudit(user, table, recordId, action, before, after) {
-  var t = openTable('AuditLog');
-  var entry = {
-    id: Utilities.getUuid(),
-    at: nowIso(),
-    userId: user ? user.id : '',
-    userName: user ? user.name : '',
-    table: table,
-    recordId: recordId,
-    action: action,
-    before: before ? JSON.stringify(withoutSecrets(before)) : '',
-    after: after ? JSON.stringify(withoutSecrets(after)) : '',
-  };
-  t.sheet.appendRow(
-    t.header.map(function (column) {
-      return toCell(entry[column] === undefined ? '' : entry[column]);
+  dbAuditMany(user, table, [{ recordId: recordId, action: action, before: before, after: after }]);
+}
+
+function dbAuditMany(user, table, items) {
+  var at = nowIso();
+  appendObjects(
+    openTable('AuditLog'),
+    items.map(function (item) {
+      return {
+        id: Utilities.getUuid(),
+        at: at,
+        userId: user ? user.id : '',
+        userName: user ? user.name : '',
+        table: table,
+        recordId: item.recordId,
+        action: item.action,
+        before: item.before ? JSON.stringify(withoutSecrets(item.before)) : '',
+        after: item.after ? JSON.stringify(withoutSecrets(item.after)) : '',
+      };
     }),
   );
 }

@@ -33,12 +33,14 @@ class FakeRange {
     return this.getValues()[0][0]
   }
   setValues(values) {
+    this.sheet.writeCalls++
     values.forEach((line, r) => {
       line.forEach((v, c) => this.sheet.set(this.row + r, this.col + c, v))
     })
     return this
   }
   setValue(v) {
+    this.sheet.writeCalls++
     this.sheet.set(this.row, this.col, v)
     return this
   }
@@ -48,6 +50,7 @@ class FakeSheet {
   constructor(name) {
     this.name = name
     this.data = []
+    this.writeCalls = 0
   }
   set(row, col, v) {
     while (this.data.length < row) this.data.push([])
@@ -71,6 +74,7 @@ class FakeSheet {
     return new FakeRange(this, 1, 1, Math.max(1, this.getLastRow()), Math.max(1, this.getLastColumn()))
   }
   appendRow(values) {
+    this.writeCalls++
     const row = this.data.length + 1
     values.forEach((v, i) => this.set(row, i + 1, v))
     return this
