@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import App from './App'
-import { ApiError, callApi, getToken } from './api/client'
+import { ApiError, callApi, getToken, setToken } from './api/client'
 import { AuthProvider } from './auth/AuthContext'
 
 vi.mock('./api/client', async (importOriginal) => {
@@ -99,7 +99,7 @@ describe('forced password change', () => {
       'auth.me': () => me,
       'auth.changePassword': () => {
         me = { ...teacher }
-        return true
+        return { token: 'after-change' }
       },
     })
     renderApp()
@@ -115,6 +115,8 @@ describe('forced password change', () => {
     await userEvent.click(screen.getByRole('button', { name: '비밀번호 바꾸기' }))
     expect(api).toHaveBeenCalledWith('auth.changePassword', { currentPassword: 'temp123456', newPassword: 'teacher-pass-1' })
     expect(await screen.findByText('이교사 선생님')).toBeInTheDocument()
+    // The server ends older sessions, so the new token must be kept.
+    expect(setToken).toHaveBeenCalledWith('after-change')
   })
 })
 

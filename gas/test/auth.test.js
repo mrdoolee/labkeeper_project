@@ -140,8 +140,25 @@ describe('changePassword', () => {
   test('clears mustChangePassword', () => {
     const { token, user } = setupAdmin()
     gas.ctx.dbUpdate('Users', user.id, { mustChangePassword: true }, { id: 'x', name: 'x' })
-    gas.call('auth.changePassword', { currentPassword: 'first-pass-1', newPassword: 'brand-new-1' }, token)
-    expect(gas.call('auth.me', {}, token).data.mustChangePassword).toBe(false)
+    const res = gas.call('auth.changePassword', { currentPassword: 'first-pass-1', newPassword: 'brand-new-1' }, token)
+    expect(gas.call('auth.me', {}, res.data.token).data.mustChangePassword).toBe(false)
+  })
+
+  test('ends every older session and hands back a new token', () => {
+    const { token } = setupAdmin()
+    const other = login('kim', 'first-pass-1').data.token
+    const res = gas.call('auth.changePassword', { currentPassword: 'first-pass-1', newPassword: 'brand-new-1' }, token)
+    expect(res.data.token).toMatch(/^[0-9a-f]{64}$/)
+    expect(gas.call('auth.me', {}, token).error.code).toBe('AUTH_REQUIRED')
+    expect(gas.call('auth.me', {}, other).error.code).toBe('AUTH_REQUIRED')
+    expect(gas.call('auth.me', {}, res.data.token).ok).toBe(true)
+  })
+
+  test('shows up in the history as a password change', () => {
+    const { token, user } = setupAdmin()
+    const res = gas.call('auth.changePassword', { currentPassword: 'first-pass-1', newPassword: 'brand-new-1' }, token)
+    const last = gas.call('audit.list', { table: 'Users', recordId: user.id }, res.data.token).data[0]
+    expect(last).toMatchObject({ action: 'passwordChange', userName: '김운영' })
   })
 })
 

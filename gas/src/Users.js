@@ -57,7 +57,8 @@ function usersResetPassword(payload, user) {
   if (!row || row.deleted) throw apiError('NOT_FOUND', '해당 계정을 찾을 수 없습니다.');
   var password = tempPassword();
   var salt = newSalt();
-  dbUpdate('Users', row.id, { salt: salt, hash: hashPassword(password, salt), mustChangePassword: true }, user);
+  dbUpdate('Users', row.id, { salt: salt, hash: hashPassword(password, salt), mustChangePassword: true }, user, { skipAudit: true });
+  dbAudit(user, 'Users', row.id, 'passwordReset', null, null);
   CacheService.getScriptCache().remove('fail:' + row.loginId);
   return { tempPassword: password };
 }

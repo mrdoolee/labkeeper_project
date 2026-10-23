@@ -74,6 +74,15 @@ describe('users.resetPassword', () => {
     expect(res.ok).toBe(true)
     expect(res.data.user.mustChangePassword).toBe(true)
   })
+
+  test('logs the teacher out everywhere and is recorded in the history', () => {
+    const { user, tempPassword } = createUser('lee')
+    const teacherToken = loginToken('lee', tempPassword)
+    gas.call('users.resetPassword', { id: user.id }, adminToken)
+    expect(gas.call('auth.me', {}, teacherToken).error.code).toBe('AUTH_REQUIRED')
+    const last = gas.call('audit.list', { table: 'Users', recordId: user.id }, adminToken).data[0]
+    expect(last.action).toBe('passwordReset')
+  })
 })
 
 describe('users.update and the last admin', () => {

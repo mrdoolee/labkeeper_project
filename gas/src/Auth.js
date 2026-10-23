@@ -72,17 +72,20 @@ function activeUsers() {
   });
 }
 
-function startSession(user) {
+// The session remembers the user's salt. Every password change or reset
+// makes a new salt, so all sessions from before it stop working.
+function startSession(row) {
   var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
-  CacheService.getScriptCache().put('session:' + token, JSON.stringify({ userId: user.id }), SESSION_SECONDS);
+  CacheService.getScriptCache().put('session:' + token, JSON.stringify({ userId: row.id, salt: row.salt }), SESSION_SECONDS);
   return token;
 }
 
 function requireUser(token) {
   var cache = CacheService.getScriptCache();
   var raw = token ? cache.get('session:' + token) : null;
-  var row = raw ? dbGet('Users', JSON.parse(raw).userId) : null;
-  if (!row || row.deleted || !row.active) {
+  var session = raw ? JSON.parse(raw) : null;
+  var row = session ? dbGet('Users', session.userId) : null;
+  if (!row || row.deleted || !row.active || row.salt !== session.salt) {
     if (token) cache.remove('session:' + token);
     throw apiError('AUTH_REQUIRED', '로그인이 필요합니다.');
   }
@@ -154,6 +157,7 @@ function authChangePassword(payload, user) {
   }
   checkPasswordRule(payload.newPassword);
   var salt = newSalt();
-  dbUpdate('Users', user.id, { salt: salt, hash: hashPassword(payload.newPassword, salt), mustChangePassword: false }, user);
-  return true;
+  var updated = dbUpdate('Users', user.id, { salt: salt, hash: hashPassword(payload.newPassword, salt), mustChangePassword: false }, user, { skipAudit: true });
+  dbAudit(user, 'Users', user.id, 'passwordChange', null, null);
+  return { token: startSession(updated) };
 }

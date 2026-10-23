@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { callApi } from '../api/client'
+import { callApi, setToken } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { ErrorMessage, Field, errorText } from '../components/Field'
 import { checkNewPassword } from './passwordRules'
@@ -19,7 +19,9 @@ export default function ChangePasswordPage() {
     setBusy(true)
     setError(null)
     try {
-      await callApi('auth.changePassword', { currentPassword: current, newPassword: next })
+      // The server ends every older session, including this one.
+      const { token } = await callApi<{ token: string }>('auth.changePassword', { currentPassword: current, newPassword: next })
+      setToken(token)
       await refresh()
     } catch (err) {
       setError(errorText(err))

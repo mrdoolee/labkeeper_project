@@ -9,12 +9,20 @@ export interface AuditEntry {
   userName: string
   table: string
   recordId: string
-  action: 'create' | 'update' | 'delete' | 'restore' | 'login'
+  action: 'create' | 'update' | 'delete' | 'restore' | 'login' | 'passwordChange' | 'passwordReset'
   before: Record<string, unknown> | null
   after: Record<string, unknown> | null
 }
 
-const ACTION_LABELS: Record<string, string> = { create: '추가', update: '수정', delete: '삭제', restore: '복구', login: '로그인' }
+const ACTION_LABELS: Record<string, string> = {
+  create: '추가',
+  update: '수정',
+  delete: '삭제',
+  restore: '복구',
+  login: '로그인',
+  passwordChange: '비밀번호 변경',
+  passwordReset: '비밀번호 초기화',
+}
 
 // Korean names for columns and settings shown in the history.
 const FIELD_LABELS: Record<string, string> = {

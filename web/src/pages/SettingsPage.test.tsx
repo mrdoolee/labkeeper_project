@@ -120,5 +120,15 @@ describe('HistoryDialog', () => {
     expect(rows[1]).toHaveTextContent('삭제')
     expect(rows[2]).toHaveTextContent('제1과학실')
   })
-})
 
+  test('password changes and resets read as such', async () => {
+    api.mockImplementation(async () => [
+      { id: 'a5', at: '2026-03-05T01:00:00.000Z', userId: 'u1', userName: '김운영', table: 'Users', recordId: 'u2', action: 'passwordReset', before: null, after: null },
+      { id: 'a4', at: '2026-03-04T01:00:00.000Z', userId: 'u2', userName: '이교사', table: 'Users', recordId: 'u2', action: 'passwordChange', before: null, after: null },
+    ])
+    render(<HistoryDialog table="Users" recordId="u2" onClose={() => {}} />)
+    const rows = await within(await screen.findByRole('dialog')).findAllByRole('row')
+    expect(rows[1]).toHaveTextContent('비밀번호 초기화')
+    expect(rows[2]).toHaveTextContent('비밀번호 변경')
+  })
+})
