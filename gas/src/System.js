@@ -9,6 +9,7 @@ var OWNER_PROP = 'OWNER_SPREADSHEET_ID';
 function systemActions() {
   return {
     'system.info': { auth: 'none', write: false, handler: systemInfo },
+    'system.sheetUrl': { auth: 'admin', write: false, handler: systemSheetUrl },
   };
 }
 
@@ -41,4 +42,8 @@ function systemInfo() {
     copied: copied,
     schoolName: copied ? '' : settingsGet().schoolName,
   };
+}
+
+function systemSheetUrl() {
+  return { url: SpreadsheetApp.getActive().getUrl() };
 }

@@ -25,7 +25,11 @@ test('serves doGet', async () => {
 
 test('uses the real clock so records get real timestamps', async () => {
   server = await startDevServer(0)
-  const { token } = server.gas.ctx.setupCreateAdmin({ loginId: 'kim', name: '김운영', password: 'first-pass-1' })
+  server.gas.ctx.sheetCreateAdmin({ loginId: 'kim', name: '김운영', password: 'first-pass-1' })
+  const login = await (
+    await fetch(server.url, { method: 'POST', body: JSON.stringify({ action: 'auth.login', payload: { loginId: 'kim', password: 'first-pass-1' } }) })
+  ).json()
+  const token = login.data.token
   const history = await (
     await fetch(server.url, { method: 'POST', body: JSON.stringify({ action: 'audit.list', token, payload: {} }) })
   ).json()

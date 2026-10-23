@@ -64,6 +64,11 @@ class FakeSheet {
   insertRowsAfter(afterPosition, howMany) {
     this.maxRows += howMany
   }
+  deleteRows(rowPosition, howMany) {
+    if (howMany >= this.maxRows) throw new Error("You can't delete all the rows on the sheet.")
+    this.data.splice(rowPosition - 1, howMany)
+    this.maxRows -= howMany
+  }
   insertColumnsAfter(afterPosition, howMany) {
     this.maxColumns += howMany
   }

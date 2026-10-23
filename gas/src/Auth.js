@@ -6,6 +6,7 @@ var MAX_FAILURES = 5;
 var LOCKOUT_SECONDS = 600;
 var MIN_PASSWORD_LENGTH = 8;
 var SYSTEM_USER = { id: 'system', name: '첫 설정' };
+var SHEET_OWNER = { id: 'sheet-owner', name: '시트 소유자' };
 
 function authActions() {
   return {
@@ -101,23 +102,6 @@ function requireAdmin(token) {
 // the sheet (e.g. renaming the 'active' header) can never reopen it.
 function hasAnyUser() {
   return dbList('Users', { includeDeleted: true }).length > 0;
-}
-
-function setupCreateAdmin(payload) {
-  sheetOwnerState(); // the sheet that gets the first account is the owner
-  if (hasAnyUser()) throw apiError('SETUP_DONE', '이미 운영 교사 계정이 있습니다.');
-  var loginId = normalizeLoginId(payload.loginId);
-  var name = String(payload.name || '').trim();
-  checkLoginId(loginId);
-  if (!name) throw apiError('INVALID', '이름을 입력해 주세요.');
-  checkPasswordRule(payload.password);
-  var salt = newSalt();
-  var row = dbCreate(
-    'Users',
-    { loginId: loginId, name: name, role: 'admin', salt: salt, hash: hashPassword(payload.password, salt), mustChangePassword: false, active: true },
-    SYSTEM_USER,
-  );
-  return { token: startSession(row), user: publicUser(row) };
 }
 
 function authLogin(payload) {

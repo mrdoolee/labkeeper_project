@@ -17,7 +17,7 @@ function tempPassword() {
 }
 
 function directoryList() {
-  return [SYSTEM_USER].concat(
+  return [SYSTEM_USER, SHEET_OWNER].concat(
     dbList('Users', { includeDeleted: true }).map(function (u) {
       return { id: u.id, name: u.name };
     }),
