@@ -81,8 +81,12 @@ class FakeSheet {
   }
 }
 
-export function createFakes() {
-  let now = Date.parse('2026-03-02T09:00:00Z')
+// options.realTime: follow the real clock (dev server) instead of a fixed
+// test clock moved only by advanceTime().
+export function createFakes(options = {}) {
+  let offset = 0
+  const start = Date.parse('2026-03-02T09:00:00Z')
+  const clock = () => (options.realTime ? Date.now() : start) + offset
   const sheets = new Map()
   const cache = new Map()
   const lockCalls = { wait: 0, release: 0 }
@@ -99,11 +103,11 @@ export function createFakes() {
   const RealDate = Date
   class FakeDate extends RealDate {
     constructor(...args) {
-      if (args.length === 0) super(now)
+      if (args.length === 0) super(clock())
       else super(...args)
     }
     static now() {
-      return now
+      return clock()
     }
   }
 
@@ -124,14 +128,14 @@ export function createFakes() {
         get(key) {
           const hit = cache.get(key)
           if (!hit) return null
-          if (hit.expires <= now) {
+          if (hit.expires <= clock()) {
             cache.delete(key)
             return null
           }
           return hit.value
         },
         put(key, value, seconds = 600) {
-          cache.set(key, { value: String(value), expires: now + seconds * 1000 })
+          cache.set(key, { value: String(value), expires: clock() + seconds * 1000 })
         },
         remove(key) {
           cache.delete(key)
@@ -171,7 +175,7 @@ export function createFakes() {
     sheets,
     lockCalls,
     advanceTime(seconds) {
-      now += seconds * 1000
+      offset += seconds * 1000
     },
   }
 }

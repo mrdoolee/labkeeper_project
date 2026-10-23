@@ -8,8 +8,8 @@ import { createFakes } from './fakes.js'
 
 const srcDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src')
 
-export function loadGas() {
-  const fakes = createFakes()
+export function loadGas(options = {}) {
+  const fakes = createFakes(options)
   const logs = []
   const quietConsole = { log: (...a) => logs.push(a), error: (...a) => logs.push(a), warn: (...a) => logs.push(a) }
   const ctx = vm.createContext({ ...fakes.globals, console: quietConsole })
