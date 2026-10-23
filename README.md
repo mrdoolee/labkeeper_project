@@ -64,7 +64,9 @@
 - [x] 1차 개발 범위 확정: 시약 관리 + 충북 서식 1·3·4·5 ([docs/phase1-scope.md](docs/phase1-scope.md))
 - [x] 1차 설계 문서 (docs/superpowers/specs/2026-10-23-labkeeper-phase1-design.md)
 - [x] M1 기본 틀: 로그인·계정 관리, 설정, 교실·보관장·구역, 변경 이력, 삭제 항목 복구 (docs/superpowers/plans/2026-10-23-m1-foundation.md)
-- [ ] M1 실제 배포 확인 (GAS 배포 + Vercel 연결, [docs/setup-guide.md](docs/setup-guide.md))
+- [x] 여러 학교 공용 구조: 스프레드시트 연결 화면, 시트 메뉴로 첫 계정, 접속 링크, 버전·사본 확인 (docs/superpowers/specs/2026-10-23-multi-school-connect-and-redesign-design.md)
+- [x] 화면 디자인 B: 아이콘 메뉴(접기), 파란 강조색, 교실 카드
+- [ ] 실제 배포 확인: 원본 시트 만들기, 학교 시트 코드 업데이트, 공용 화면 연결 ([docs/setup-guide.md](docs/setup-guide.md))
 - [ ] M2 시약과 대장
 - [ ] M3 폐수와 점검
 - [ ] M4 MSDS와 경고표지

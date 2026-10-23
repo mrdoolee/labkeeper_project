@@ -8,7 +8,12 @@
 - 서버: Google Apps Script (GAS)
 - DB: Google Spreadsheet
 - 최종 목표는 웹앱 배포
-- 배포 구조: React 화면은 Vercel 등에 따로 호스팅하고, GAS는 웹앱(doGet/doPost)으로 배포해 데이터 API 역할만 한다.
+- 배포 구조 (arbot과 같은 여러 학교 공용 구조): React 화면은 Vercel에 **하나만** 배포해 모든 학교가 함께 쓰고, 각 학교는 코드가 든 원본 시트를 "사본 만들기"로 복사해 자기 시트에서 GAS 웹앱(doGet/doPost)을 배포한다. 데이터는 각 학교 시트에만 있다.
+  - 웹앱은 처음 열면 "스프레드시트 연결"(GAS 주소 입력 → 연결 테스트 → 저장)부터 한다. 주소는 브라우저(localStorage)에 저장하고, 빌드 환경 변수(`VITE_GAS_URL`)는 쓰지 않는다.
+  - 운영 교사가 "우리 학교 접속 링크"(`/?gas=<GAS 주소>`)를 복사해 다른 선생님께 전한다. 저장된 학교와 다른 링크면 바꾸기 전에 묻는다.
+  - 첫 운영 교사 계정은 시트 메뉴 LabKeeper에서만 만든다(웹에서 만들 수 없음). 시트 메뉴: 첫 계정, 운영 교사 비밀번호 초기화, 시트 구조 점검, 사본을 새 학교 시트로 시작, 사용 가이드.
+  - GAS의 `API_VERSION`과 웹의 `REQUIRED_API_VERSION`을 함께 올린다. 학교 GAS가 낮으면 화면이 재배포를 안내한다. 운영 중인 시트의 사본은 감지해서 막는다.
+- 화면 디자인: 시안 B(어두운 아이콘 메뉴 + 파란 강조색, 메뉴 접기). 지금 CSS(styles.css 토큰) 방식을 유지하고 아이콘만 lucide-react를 쓴다. Tailwind·shadcn은 쓰지 않는다.
   - 로그인은 교사별 아이디·비밀번호 방식이다 (구글 OAuth는 쓰지 않는다).
     - 운영 교사가 계정을 만들고, 비밀번호를 잊으면 운영 교사가 초기화한다.
     - 비밀번호는 평문으로 저장하지 않는다 (사용자별 salt + 해시로 스프레드시트에 저장).
@@ -41,7 +46,9 @@
 - GAS 테스트: `cd gas && npm test` (gas/src를 node:vm과 가짜 구글 서비스로 실행. gas/test/fakes.js는 시트의 입력 해석을 흉내 낸다)
 - 로컬 GAS 서버: `cd gas && npm run dev` (http://127.0.0.1:8787, 메모리 저장)
 - 화면 테스트: `cd web && npm test`, 타입 검사 `npx tsc -b`, 빌드 `npm run build`
-- 통합 시험: `cd web && npm run e2e` (두 서버를 자동 실행, 설치된 Chromium 사용, 스크린샷은 docs/screenshots/m1/)
+- 학교용 GAS 한 파일: `cd gas && npm run bundle` → `gas/dist/LabKeeper.gs` (gas/src를 바꾸면 다시 만든다. GAS 테스트가 최신인지 확인한다)
+- 통합 시험: `cd web && npm run e2e` (두 서버를 자동 실행, 연결 화면에 로컬 GAS 주소를 넣고 `/__dev/createAdmin`으로 첫 계정을 만든다. 설치된 Chromium 사용, 스크린샷은 docs/screenshots/m1/)
+- 로컬 개발: 개발 빌드에서만 연결 화면이 `http://127.0.0.1:8787/` 같은 로컬 주소를 받는다.
 - GAS 코드는 모듈 없는 전역 함수(V8). 파일 로드 순서가 보장되지 않으므로 최상위에서는 정의만 하고, 액션은 Code.js의 registerActions()에서 모은다.
 - 보관 분류·보관장 종류 id는 gas/src/Schema.js와 web/src/domain/storage.ts 두 곳에 있다. 바꿀 때 함께 바꾼다(GAS 테스트가 목록을 확인한다).
 

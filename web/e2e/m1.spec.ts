@@ -1,21 +1,33 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const SHOTS = '../docs/screenshots/m1'
+const GAS = 'http://127.0.0.1:8787/'
 
 async function answerNextDialog(page: Page, value?: string) {
   page.once('dialog', (d) => (value === undefined ? d.accept() : d.accept(value)))
 }
 
-test('M1: accounts, rooms, cabinets and history end to end', async ({ page }) => {
-  // First run: create the admin account
+test('M1: accounts, rooms, cabinets and history end to end', async ({ page, request }) => {
+  // First run: connect this browser to the school's spreadsheet (the local GAS dev server)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: '운영 교사 계정 만들기' })).toBeVisible()
-  await page.screenshot({ path: `${SHOTS}/01-setup.png` })
+  await expect(page.getByRole('heading', { name: '스프레드시트 연결' })).toBeVisible()
+  await page.getByLabel('GAS 웹 앱 주소').fill(GAS)
+  await page.getByRole('button', { name: '연결 테스트' }).click()
+  await expect(page.getByText('연결됨: 학교 이름 미설정')).toBeVisible()
+  await page.screenshot({ path: `${SHOTS}/01-connect.png` })
+  await page.getByRole('button', { name: '저장하고 계속' }).click()
+
+  // No account yet: the first admin is made from the sheet menu
+  await expect(page.getByRole('heading', { name: '운영 교사 계정을 먼저 만들어 주세요' })).toBeVisible()
+  await page.screenshot({ path: `${SHOTS}/01b-needs-admin.png` })
+  const made = await request.post(`${GAS}__dev/createAdmin`, { data: { loginId: 'kim', name: '김운영', password: 'first-pass-1' } })
+  expect(await made.json()).toEqual({ ok: true })
+  await page.getByRole('button', { name: '다시 확인' }).click()
+
+  await expect(page.getByRole('heading', { name: '로그인' })).toBeVisible()
   await page.getByLabel('아이디', { exact: true }).fill('kim')
-  await page.getByLabel('이름').fill('김운영')
   await page.getByLabel('비밀번호', { exact: true }).fill('first-pass-1')
-  await page.getByLabel('비밀번호 확인').fill('first-pass-1')
-  await page.getByRole('button', { name: '계정 만들기' }).click()
+  await page.getByRole('button', { name: '로그인' }).click()
   await expect(page.getByRole('heading', { name: '안녕하세요, 김운영 선생님' })).toBeVisible()
 
   // Admin creates a teacher account and reads the temporary password
@@ -27,6 +39,7 @@ test('M1: accounts, rooms, cabinets and history end to end', async ({ page }) =>
   await expect(notice).toContainText('이교사')
   const tempPassword = (await notice.locator('code').textContent())!.trim()
   expect(tempPassword).toMatch(/^[a-z0-9]{10}$/)
+  await expect(page.getByRole('textbox', { name: '접속 링크' })).toHaveValue(/\/\?gas=http%3A%2F%2F127\.0\.0\.1%3A8787%2F$/)
   await page.screenshot({ path: `${SHOTS}/02-users.png` })
   await page.getByRole('button', { name: '로그아웃' }).click()
 
