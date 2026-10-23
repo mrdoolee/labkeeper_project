@@ -150,12 +150,11 @@ describe('dbList', () => {
 
 describe('audit of users', () => {
   test('salt and hash never reach the audit log', () => {
-    const row = db.dbCreate('Users', { loginId: 'kim', name: '김', role: 'admin', salt: 'aa', hash: 'bb', mustChangePassword: false, active: true }, u)
-    db.dbUpdate('Users', row.id, { hash: 'cc', name: '김교사' }, u)
+    const row = db.dbCreate('Users', { loginId: 'kim', name: '김', role: 'admin', salt: 'SALT-SECRET-1', hash: 'HASH-SECRET-1', mustChangePassword: false, active: true }, u)
+    db.dbUpdate('Users', row.id, { hash: 'HASH-SECRET-2', name: '김교사' }, u)
     const text = JSON.stringify(gas.sheet('AuditLog'))
-    expect(text).not.toContain('"aa"')
-    expect(text).not.toContain('bb')
-    expect(text).not.toContain('cc')
+    expect(text).not.toContain('SALT-SECRET')
+    expect(text).not.toContain('HASH-SECRET')
     expect(text).toContain('김교사')
   })
 })
