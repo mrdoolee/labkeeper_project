@@ -3,6 +3,7 @@ import { callApi } from '../api/client'
 import type { User } from '../auth/AuthContext'
 import { ErrorMessage, errorText } from '../components/Field'
 import { HistoryButton } from '../components/HistoryDialog'
+import { SchoolLink } from '../components/SchoolLink'
 
 /** Temporary password shown once after creating or resetting an account. */
 function TempPassword({ who, password, onClose }: { who: string; password: string; onClose: () => void }) {
@@ -66,6 +67,7 @@ export default function UsersPage() {
         <HistoryButton table="Users" />
       </div>
       <ErrorMessage message={error} />
+      <SchoolLink />
       {temp && <TempPassword who={temp.who} password={temp.password} onClose={() => setTemp(null)} />}
 
       <form className="card toolbar" onSubmit={create} aria-label="새 계정">

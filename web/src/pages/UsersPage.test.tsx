@@ -1,7 +1,8 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { ApiError, callApi } from '../api/client'
+import { schoolLink, setGasUrl } from '../api/connection'
 import UsersPage from './UsersPage'
 
 vi.mock('../api/client', async (importOriginal) => {
@@ -12,7 +13,10 @@ vi.mock('../api/client', async (importOriginal) => {
 const api = vi.mocked(callApi)
 let users: Record<string, unknown>[]
 
+const A = 'https://script.google.com/macros/s/AKfyA/exec'
+
 beforeEach(() => {
+  setGasUrl(A)
   users = [
     { id: 'u1', loginId: 'kim', name: '김운영', role: 'admin', mustChangePassword: false, active: true },
     { id: 'u2', loginId: 'lee', name: '이교사', role: 'teacher', mustChangePassword: false, active: true },
@@ -26,6 +30,7 @@ beforeEach(() => {
       users = [...users, user]
       return { user, tempPassword: 'a1b2c3d4e5' }
     }
+    if (action === 'system.sheetUrl') return { url: 'https://docs.google.com/spreadsheets/d/sheet-A/edit' }
     if (action === 'users.resetPassword') return { tempPassword: 'f6e5d4c3b2' }
     if (action === 'users.update') {
       if (p.id === 'u1') throw new ApiError('INVALID', '운영 교사가 최소 1명 있어야 합니다.')
@@ -88,5 +93,44 @@ describe('UsersPage', () => {
     await screen.findByRole('cell', { name: 'kim' })
     await userEvent.click(within(rowOf('김운영')).getByRole('button', { name: '사용 중지' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('운영 교사가 최소 1명 있어야 합니다.')
+  })
+})
+
+describe('school link and spreadsheet', () => {
+  function stubClipboard(writeText: (text: string) => Promise<void>) {
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+  }
+
+  test('shows the school link to share', async () => {
+    render(<UsersPage />)
+    expect(await screen.findByLabelText('접속 링크')).toHaveValue(schoolLink(A))
+    expect(screen.getByText('새 선생님께 이 링크와 임시 비밀번호를 함께 전해 주세요.')).toBeInTheDocument()
+  })
+
+  test('copy puts the link on the clipboard', async () => {
+    const writeText = vi.fn(async () => {})
+    stubClipboard(writeText)
+    render(<UsersPage />)
+    fireEvent.click(await screen.findByRole('button', { name: '복사' }))
+    expect(await screen.findByText('복사했습니다')).toBeInTheDocument()
+    expect(writeText).toHaveBeenCalledWith(schoolLink(A))
+  })
+
+  test('when the clipboard is refused it asks to copy by hand', async () => {
+    stubClipboard(async () => {
+      throw new Error('denied')
+    })
+    render(<UsersPage />)
+    fireEvent.click(await screen.findByRole('button', { name: '복사' }))
+    expect(await screen.findByText('직접 복사해 주세요(Ctrl+C)')).toBeInTheDocument()
+  })
+
+  test('스프레드시트 열기 opens the school sheet in a new tab', async () => {
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+    render(<UsersPage />)
+    await userEvent.click(await screen.findByRole('button', { name: '스프레드시트 열기' }))
+    expect(api).toHaveBeenCalledWith('system.sheetUrl')
+    expect(open).toHaveBeenCalledWith('https://docs.google.com/spreadsheets/d/sheet-A/edit', '_blank', 'noopener')
+    open.mockRestore()
   })
 })
