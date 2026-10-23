@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
@@ -128,4 +128,28 @@ describe('CabinetSearch', () => {
     await userEvent.click(results[1])
     expect(await screen.findByText('열린 보관장')).toBeInTheDocument()
   })
+
+  test('reloads on each focus, so new and deleted cabinets show up', async () => {
+    render(
+      <MemoryRouter>
+        <CabinetSearch />
+        <button type="button">다른 곳</button>
+      </MemoryRouter>,
+    )
+    const box = screen.getByLabelText('보관장 찾기')
+    await userEvent.type(box, '교구장')
+    expect(await screen.findAllByRole('option')).toHaveLength(2)
+    await userEvent.clear(box)
+    await userEvent.click(screen.getByRole('button', { name: '다른 곳' }))
+
+    fake.tables.Cabinets.push(cab('c8', 'r3', '교구장 3'))
+    fake.tables.Cabinets.find((c) => c.id === 'c7')!.deleted = true
+    fake.tables.Rooms.find((r) => r.id === 'r1')!.name = '1층 과학실'
+
+    await userEvent.type(box, '교구장')
+    await waitFor(() =>
+      expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['1층 과학실 › 교구장 1', '제2과학실 › 교구장 3']),
+    )
+  })
 })
+

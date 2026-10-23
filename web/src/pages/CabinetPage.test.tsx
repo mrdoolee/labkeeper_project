@@ -153,3 +153,18 @@ describe('CabinetPage', () => {
     expect(fake.called('records.createMany')).toHaveLength(1)
   })
 })
+
+describe('missing pages', () => {
+  test('an unknown or deleted cabinet says it cannot be found', async () => {
+    renderAt('/cabinets/nope')
+    expect(await screen.findByText('보관장을 찾을 수 없습니다. 삭제되었거나 주소가 잘못되었습니다.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '교실·보관장으로' })).toBeInTheDocument()
+  })
+
+  test('an unknown or deleted room says it cannot be found', async () => {
+    fake.tables.Rooms[0].deleted = true
+    renderAt('/rooms/r1')
+    expect(await screen.findByText('교실을 찾을 수 없습니다. 삭제되었거나 주소가 잘못되었습니다.')).toBeInTheDocument()
+  })
+})
+

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { records, type Cabinet, type Room, type Zone } from '../api/records'
 import { CABINET_TYPES, STORAGE_CLASSES, planZones, type CabinetType } from '../domain/storage'
 import { ErrorMessage, errorText } from '../components/Field'
+import { NotFound } from '../components/NotFound'
 import { useBusy } from '../components/useBusy'
 import { HistoryButton } from '../components/HistoryDialog'
 import { LastEdited, useDirectory } from '../components/LastEdited'
@@ -70,6 +71,7 @@ export default function CabinetPage() {
   const [form, setForm] = useState<CabinetForm | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const { busy, run } = useBusy(setError)
 
   const loadZones = useCallback(async () => setZones(await records.list('Zones', { cabinetId })), [cabinetId])
@@ -86,7 +88,9 @@ export default function CabinetPage() {
   }, [cabinetId])
 
   useEffect(() => {
-    load().catch((err) => setError(errorText(err)))
+    load()
+      .then(() => setLoaded(true))
+      .catch((err) => setError(errorText(err)))
   }, [load])
 
   async function saveCabinet(e: FormEvent) {
@@ -107,7 +111,11 @@ export default function CabinetPage() {
     })
   }
 
-  if (!cabinet || !form) return error ? <ErrorMessage message={error} /> : <p>불러오는 중…</p>
+  if (!cabinet || !form) {
+    if (error) return <ErrorMessage message={error} />
+    if (loaded) return <NotFound what="보관장" />
+    return <p>불러오는 중…</p>
+  }
 
   const shelves = Array.from({ length: cabinet.rows }, (_, i) => i + 1)
   const slots = Array.from({ length: cabinet.cols }, (_, i) => i + 1)

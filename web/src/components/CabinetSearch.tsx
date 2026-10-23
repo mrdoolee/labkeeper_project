@@ -8,8 +8,9 @@ export default function CabinetSearch() {
   const [query, setQuery] = useState('')
   const [data, setData] = useState<{ rooms: Record<string, string>; cabinets: Cabinet[] } | null>(null)
 
-  async function ensureLoaded() {
-    if (data) return
+  // Reload on every focus: cheap (two list calls) and keeps names and
+  // deletions current, since this box lives for the whole session.
+  async function reload() {
     const [rooms, cabinets] = await Promise.all([records.list('Rooms'), records.list('Cabinets')])
     setData({ rooms: Object.fromEntries(rooms.map((r: Room) => [r.id, r.name])), cabinets })
   }
@@ -28,11 +29,8 @@ export default function CabinetSearch() {
         aria-label="보관장 찾기"
         placeholder="보관장 찾기"
         value={query}
-        onFocus={() => ensureLoaded().catch(() => {})}
-        onChange={(e) => {
-          setQuery(e.target.value)
-          ensureLoaded().catch(() => {})
-        }}
+        onFocus={() => reload().catch(() => {})}
+        onChange={(e) => setQuery(e.target.value)}
       />
       {results.length > 0 && (
         <ul role="listbox" aria-label="보관장 검색 결과">

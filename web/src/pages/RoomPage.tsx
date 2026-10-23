@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { records, type Cabinet, type Room } from '../api/records'
 import { CABINET_TYPES, copyZones, planZones, type CabinetType } from '../domain/storage'
 import { ErrorMessage, errorText } from '../components/Field'
+import { NotFound } from '../components/NotFound'
 import { useBusy } from '../components/useBusy'
 import { HistoryButton } from '../components/HistoryDialog'
 import { LastEdited, useDirectory } from '../components/LastEdited'
@@ -16,6 +17,7 @@ export default function RoomPage() {
   const [cabinets, setCabinets] = useState<Cabinet[]>([])
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState(false)
   const [form, setForm] = useState({ name: '', type: 'sealed' as CabinetType, locked: true, rows: 3, cols: 2 })
 
   const load = useCallback(async () => {
@@ -25,7 +27,9 @@ export default function RoomPage() {
   }, [roomId])
 
   useEffect(() => {
-    load().catch((err) => setError(errorText(err)))
+    load()
+      .then(() => setLoaded(true))
+      .catch((err) => setError(errorText(err)))
   }, [load])
 
   const { busy, run: runBusy } = useBusy(setError)
@@ -59,7 +63,11 @@ export default function RoomPage() {
     if (window.confirm(`'${cabinet.name}'을(를) 삭제할까요?\n삭제한 기록은 변경 이력에 남습니다.`)) run(() => records.remove('Cabinets', cabinet.id))
   }
 
-  if (!room) return error ? <ErrorMessage message={error} /> : <p>불러오는 중…</p>
+  if (!room) {
+    if (error) return <ErrorMessage message={error} />
+    if (loaded) return <NotFound what="교실" />
+    return <p>불러오는 중…</p>
+  }
   const shown = cabinets.filter((c) => c.name.includes(query.trim()))
 
   return (
