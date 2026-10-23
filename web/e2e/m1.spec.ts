@@ -11,7 +11,7 @@ test('M1: accounts, rooms, cabinets and history end to end', async ({ page }) =>
   await page.goto('/')
   await expect(page.getByRole('heading', { name: '운영 교사 계정 만들기' })).toBeVisible()
   await page.screenshot({ path: `${SHOTS}/01-setup.png` })
-  await page.getByLabel('아이디').fill('kim')
+  await page.getByLabel('아이디', { exact: true }).fill('kim')
   await page.getByLabel('이름').fill('김운영')
   await page.getByLabel('비밀번호', { exact: true }).fill('first-pass-1')
   await page.getByLabel('비밀번호 확인').fill('first-pass-1')
@@ -31,8 +31,9 @@ test('M1: accounts, rooms, cabinets and history end to end', async ({ page }) =>
   await page.getByRole('button', { name: '로그아웃' }).click()
 
   // Teacher logs in with the temporary password and must change it
-  await page.getByLabel('아이디').fill('lee')
-  await page.getByLabel('비밀번호').fill(tempPassword)
+  await expect(page.getByRole('heading', { name: '로그인' })).toBeVisible()
+  await page.getByLabel('아이디', { exact: true }).fill('lee')
+  await page.getByLabel('비밀번호', { exact: true }).fill(tempPassword)
   await page.getByRole('button', { name: '로그인' }).click()
   await expect(page.getByRole('heading', { name: '비밀번호 변경' })).toBeVisible()
   await page.getByLabel('현재 비밀번호').fill(tempPassword)
