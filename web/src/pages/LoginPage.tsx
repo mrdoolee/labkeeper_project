@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { schoolLabel } from '../api/system'
 import { useAuth } from '../auth/AuthContext'
 import { ErrorMessage, Field, errorText } from '../components/Field'
+import { Brand } from '../components/Brand'
 
 export default function LoginPage() {
   const { login, connection, disconnect } = useAuth()
@@ -26,7 +27,7 @@ export default function LoginPage() {
   return (
     <div className="auth-screen">
       <form className="card" onSubmit={submit}>
-        <div className="brand">LabKeeper</div>
+        <Brand />
         <h1>로그인</h1>
         <p className="school-line">
           <span>연결된 학교: {schoolLabel(connection.info)}</span>

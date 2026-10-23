@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react'
 import { GUIDE_URL, schoolLabel } from '../api/system'
 import { useAuth } from '../auth/AuthContext'
+import { Brand } from '../components/Brand'
 
 function Screen({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="auth-screen">
       <section className="card">
-        <div className="brand">LabKeeper</div>
+        <Brand />
         <h1>{title}</h1>
         {children}
       </section>

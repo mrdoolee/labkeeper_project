@@ -3,6 +3,7 @@ import { callApi, setToken } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import { ErrorMessage, Field, errorText } from '../components/Field'
 import { checkNewPassword } from './passwordRules'
+import { Brand } from '../components/Brand'
 
 export default function ChangePasswordPage() {
   const { user, refresh, logout } = useAuth()
@@ -33,7 +34,7 @@ export default function ChangePasswordPage() {
   return (
     <div className="auth-screen">
       <form className="card" onSubmit={submit}>
-        <div className="brand">LabKeeper</div>
+        <Brand />
         <h1>비밀번호 변경</h1>
         {user?.mustChangePassword && <p className="hint">임시 비밀번호로 로그인했습니다. 계속하려면 새 비밀번호를 정해 주세요.</p>}
         <ErrorMessage message={error} />

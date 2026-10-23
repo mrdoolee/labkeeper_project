@@ -55,19 +55,33 @@ function renderRooms() {
   )
 }
 
+// The card (list item) whose title link is exactly `name`.
 function rowOf(name: string) {
-  return screen.getByRole('row', { name: new RegExp(name) })
+  const list = screen.getByRole('list', { name: '교실 목록' })
+  const card = within(list)
+    .getAllByRole('listitem')
+    .find((li) => within(li).queryByRole('link', { name }))
+  if (!card) throw new Error('no card for ' + name)
+  return card
 }
 
 describe('RoomsPage', () => {
   test('counts cabinets per room from one cabinet list', async () => {
     renderRooms()
     await screen.findByRole('link', { name: '제1과학실' })
-    expect(within(rowOf('제1과학실')).getByText('3개')).toBeInTheDocument()
-    expect(within(rowOf('과학 준비실')).getByText('3개')).toBeInTheDocument()
-    expect(within(rowOf('제2과학실')).getByText('1개')).toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: '교실 목록' })).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(rowOf('제1과학실')).getByText('보관장 3개')).toBeInTheDocument()
+    expect(within(rowOf('과학 준비실')).getByText('보관장 3개')).toBeInTheDocument()
+    expect(within(rowOf('제2과학실')).getByText('보관장 1개')).toBeInTheDocument()
     expect(fake.called('records.list').filter((p) => p.table === 'Cabinets')).toHaveLength(1)
     expect(within(rowOf('제1과학실')).getByText(/김운영/)).toBeInTheDocument()
+  })
+
+  test('a science lab card shows the 과학실 badge, a prep room does not', async () => {
+    renderRooms()
+    await screen.findByRole('link', { name: '제1과학실' })
+    expect(within(rowOf('제1과학실')).getByText('과학실', { selector: '.badge' })).toBeInTheDocument()
+    expect(within(rowOf('과학 준비실')).queryByText('과학실', { selector: '.badge' })).not.toBeInTheDocument()
   })
 
   test('filters by name and by science-lab only', async () => {
@@ -107,7 +121,7 @@ describe('RoomsPage', () => {
     expect(await screen.findByRole('link', { name: '제3 과학실(2층)' })).toBeInTheDocument()
 
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    await userEvent.click(within(rowOf('제3 과학실')).getByRole('button', { name: '삭제' }))
+    await userEvent.click(within(rowOf('제3 과학실(2층)')).getByRole('button', { name: '삭제' }))
     expect(fake.called('records.delete')).toHaveLength(1)
   })
 })

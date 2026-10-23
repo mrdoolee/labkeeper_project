@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { Archive } from 'lucide-react'
 import { records, type Room } from '../api/records'
 import { ErrorMessage, errorText } from '../components/Field'
 import { useBusy } from '../components/useBusy'
@@ -83,49 +84,42 @@ export default function RoomsPage() {
           {shown.length}곳 / 전체 {rooms.length}곳
         </span>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>교실</th>
-            <th>과학실</th>
-            <th>보관장</th>
-            <th>마지막 수정</th>
-            <th>관리</th>
-          </tr>
-        </thead>
-        <tbody>
-          {shown.map((room) => (
-            <tr key={room.id}>
-              <td>
-                <Link to={`/rooms/${room.id}`}>{room.name}</Link>
-              </td>
-              <td>
+      <ul className="card-grid" aria-label="교실 목록">
+        {shown.map((room) => (
+          <li key={room.id} className="room-card">
+            <div className="room-card-head">
+              <span className="icon-tile" aria-hidden="true">
+                <Archive size={20} />
+              </span>
+              <Link to={`/rooms/${room.id}`} className="room-card-title">
+                {room.name}
+              </Link>
+              {room.isLab && <span className="badge">과학실</span>}
+            </div>
+            <div>보관장 {counts[room.id] ?? 0}개</div>
+            <LastEdited by={room.updatedBy} at={room.updatedAt} nameOf={nameOf} />
+            <div className="room-card-actions">
+              <label className="check">
                 <input
                   type="checkbox"
                   aria-label={`${room.name} 과학실 여부`}
                   checked={room.isLab}
                   onChange={(e) => run(() => records.update('Rooms', room.id, { isLab: e.target.checked }))}
-                />
-              </td>
-              <td>{counts[room.id] ?? 0}개</td>
-              <td>
-                <LastEdited by={room.updatedBy} at={room.updatedAt} nameOf={nameOf} />
-              </td>
-              <td>
-                <div className="toolbar">
-                <button type="button" onClick={() => rename(room)}>
-                  이름 변경
-                </button>
-                <button type="button" className="danger" onClick={() => remove(room)}>
-                  삭제
-                </button>
-                <HistoryButton table="Rooms" recordId={room.id} label="이력" />
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                />{' '}
+                과학실
+              </label>
+              <span className="spacer" />
+              <button type="button" onClick={() => rename(room)}>
+                이름 변경
+              </button>
+              <button type="button" className="danger" onClick={() => remove(room)}>
+                삭제
+              </button>
+              <HistoryButton table="Rooms" recordId={room.id} label="이력" />
+            </div>
+          </li>
+        ))}
+      </ul>
       <DeletedList table="Rooms" label="교실" nameOf={nameOf} onRestored={load} />
     </section>
   )

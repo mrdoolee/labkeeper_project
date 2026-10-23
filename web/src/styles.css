@@ -153,10 +153,13 @@ textarea {
   width: min(400px, 100%);
 }
 
-.auth-screen .brand {
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
   font-weight: 700;
-  color: var(--color-muted);
-  margin-bottom: var(--space);
+  margin-bottom: calc(var(--space) * 2);
 }
 
 /* App shell */
@@ -558,4 +561,73 @@ td .toolbar {
 .school-link input {
   flex: 1 1 320px;
   min-width: 0;
+}
+
+/* Room cards (design B) */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.room-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.room-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-tile {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-strong);
+}
+
+.room-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.room-card-title:hover {
+  text-decoration: underline;
+}
+
+.badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 12px;
+}
+
+.room-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+}
+
+.room-card-actions button {
+  padding: 4px 10px;
 }

@@ -3,6 +3,7 @@ import { isValidGasUrl } from '../api/connection'
 import { fetchSystemInfo, GUIDE_URL, schoolLabel, type SystemInfo } from '../api/system'
 import { useAuth } from '../auth/AuthContext'
 import { Field } from '../components/Field'
+import { Brand } from '../components/Brand'
 
 /** First screen: which school spreadsheet (GAS web app) this browser uses. */
 export default function ConnectPage() {
@@ -31,7 +32,7 @@ export default function ConnectPage() {
   return (
     <div className="auth-screen">
       <form className="card" onSubmit={test}>
-        <div className="brand">LabKeeper</div>
+        <Brand />
         <h1>스프레드시트 연결</h1>
         <p className="hint">학교 스프레드시트에서 배포한 Apps Script 웹 앱 주소를 넣어 주세요. 이 브라우저에 저장됩니다.</p>
         {problem === 'format' && (
