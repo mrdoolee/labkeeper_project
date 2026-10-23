@@ -35,3 +35,16 @@ test('uses the real clock so records get real timestamps', async () => {
   ).json()
   expect(Math.abs(Date.parse(history.data[0].at) - Date.now())).toBeLessThan(60_000)
 })
+
+test('can create the first admin for local testing', async () => {
+  server = await startDevServer(0)
+  const made = await fetch(server.url + '__dev/createAdmin', {
+    method: 'POST',
+    body: JSON.stringify({ loginId: 'kim', name: '김운영', password: 'first-pass-1' }),
+  })
+  expect(await made.json()).toEqual({ ok: true })
+  const login = await (
+    await fetch(server.url, { method: 'POST', body: JSON.stringify({ action: 'auth.login', payload: { loginId: 'kim', password: 'first-pass-1' } }) })
+  ).json()
+  expect(login.ok).toBe(true)
+})

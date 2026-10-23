@@ -21,6 +21,18 @@ export function startDevServer(port = 8787) {
     let body = ''
     req.on('data', (chunk) => (body += chunk))
     req.on('end', () => {
+      // Stand-in for the sheet menu "운영 교사 계정 만들기" (local testing only).
+      if (req.method === 'POST' && req.url === '/__dev/createAdmin') {
+        let reply
+        try {
+          gas.ctx.sheetCreateAdmin(JSON.parse(body))
+          reply = { ok: true }
+        } catch (err) {
+          reply = { ok: false, error: { code: err.code || 'INVALID', message: err.message } }
+        }
+        res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' }).end(JSON.stringify(reply))
+        return
+      }
       const out = req.method === 'POST' ? gas.ctx.doPost({ postData: { contents: body } }) : gas.ctx.doGet({})
       res.writeHead(200, { ...CORS, 'Content-Type': 'application/json; charset=utf-8' }).end(out.getContent())
     })
