@@ -242,3 +242,47 @@ th {
     transition: none !important;
   }
 }
+
+.spacer {
+  flex: 1;
+}
+
+.notice {
+  background: #f0fdf4;
+  color: var(--color-accent);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin-bottom: calc(var(--space) * 1.5);
+}
+
+.temp-password code.big {
+  display: block;
+  font-size: 24px;
+  letter-spacing: 2px;
+  margin: 8px 0;
+  color: var(--color-text);
+}
+
+.field.checkbox label {
+  font-weight: normal;
+}
+
+.settings-form {
+  max-width: 560px;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 10;
+}
+
+.dialog {
+  width: min(900px, 100%);
+  max-height: 80vh;
+  overflow: auto;
+}

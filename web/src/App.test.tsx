@@ -25,9 +25,9 @@ function serve(handlers: Record<string, Handler | unknown>) {
 const admin = { id: 'u1', loginId: 'kim', name: '김운영', role: 'admin', mustChangePassword: false, active: true }
 const teacher = { ...admin, id: 'u2', loginId: 'lee', name: '이교사', role: 'teacher' }
 
-function renderApp() {
+function renderApp(path = '/') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[path]}>
       <AuthProvider>
         <App />
       </AuthProvider>
@@ -135,5 +135,33 @@ describe('menu', () => {
     expect(await screen.findByRole('link', { name: '계정 관리' })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '로그아웃' }))
     await waitFor(() => expect(screen.getByLabelText('아이디')).toBeInTheDocument())
+  })
+})
+
+describe('routes', () => {
+  test('an admin can open account management', async () => {
+    vi.mocked(getToken).mockReturnValue('t')
+    serve({ 'setup.status': { needsSetup: false }, 'auth.me': admin, 'users.list': [admin] })
+    renderApp('/users')
+    expect(await screen.findByRole('heading', { name: '계정 관리' })).toBeInTheDocument()
+  })
+
+  test('a teacher who types /users is sent home', async () => {
+    vi.mocked(getToken).mockReturnValue('t')
+    serve({ 'setup.status': { needsSetup: false }, 'auth.me': teacher })
+    renderApp('/users')
+    expect(await screen.findByRole('heading', { name: /안녕하세요/ })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: '계정 관리' })).not.toBeInTheDocument()
+  })
+
+  test('settings opens for everyone', async () => {
+    vi.mocked(getToken).mockReturnValue('t')
+    serve({
+      'setup.status': { needsSetup: false },
+      'auth.me': teacher,
+      'settings.get': { schoolName: '', schoolLevel: 'middle', region: 'chungbuk', signerScienceHead: '', signerVicePrincipal: '', signerPrincipal: '', labOver100m2: false, wasteDisposal: 'office' },
+    })
+    renderApp('/settings')
+    expect(await screen.findByRole('heading', { name: '설정' })).toBeInTheDocument()
   })
 })
