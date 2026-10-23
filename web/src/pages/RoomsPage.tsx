@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { records, type Room } from '../api/records'
 import { ErrorMessage, errorText } from '../components/Field'
+import { useBusy } from '../components/useBusy'
 import { HistoryButton } from '../components/HistoryDialog'
 import { LastEdited, useDirectory } from '../components/LastEdited'
 
@@ -27,15 +28,12 @@ export default function RoomsPage() {
     load().catch((err) => setError(errorText(err)))
   }, [load])
 
-  async function run(action: () => Promise<unknown>) {
-    setError(null)
-    try {
+  const { busy, run: runBusy } = useBusy(setError)
+  const run = (action: () => Promise<unknown>) =>
+    runBusy(async () => {
       await action()
       await load()
-    } catch (err) {
-      setError(errorText(err))
-    }
-  }
+    })
 
   function add(e: FormEvent) {
     e.preventDefault()
@@ -71,7 +69,7 @@ export default function RoomsPage() {
         <label>
           <input type="checkbox" checked={newIsLab} onChange={(e) => setNewIsLab(e.target.checked)} /> 과학실 (월간 점검 대상)
         </label>
-        <button className="primary" type="submit">
+        <button className="primary" type="submit" disabled={busy}>
           교실 추가
         </button>
       </form>

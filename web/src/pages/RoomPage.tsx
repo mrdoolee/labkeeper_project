@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { records, type Cabinet, type Room } from '../api/records'
 import { CABINET_TYPES, copyZones, planZones, type CabinetType } from '../domain/storage'
 import { ErrorMessage, errorText } from '../components/Field'
+import { useBusy } from '../components/useBusy'
 import { HistoryButton } from '../components/HistoryDialog'
 import { LastEdited, useDirectory } from '../components/LastEdited'
 
@@ -27,15 +28,12 @@ export default function RoomPage() {
     load().catch((err) => setError(errorText(err)))
   }, [load])
 
-  async function run(action: () => Promise<unknown>) {
-    setError(null)
-    try {
+  const { busy, run: runBusy } = useBusy(setError)
+  const run = (action: () => Promise<unknown>) =>
+    runBusy(async () => {
       await action()
       await load()
-    } catch (err) {
-      setError(errorText(err))
-    }
-  }
+    })
 
   function add(e: FormEvent) {
     e.preventDefault()
@@ -97,7 +95,7 @@ export default function RoomPage() {
         <label>
           칸 수 <input aria-label="칸 수" type="number" min={1} max={20} value={form.cols} onChange={(e) => setForm({ ...form, cols: Number(e.target.value) })} />
         </label>
-        <button className="primary" type="submit">
+        <button className="primary" type="submit" disabled={busy}>
           보관장 추가
         </button>
       </form>

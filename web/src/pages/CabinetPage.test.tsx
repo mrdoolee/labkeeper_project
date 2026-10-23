@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
@@ -61,6 +61,19 @@ describe('RoomPage', () => {
     expect(await screen.findByRole('link', { name: 'B 시약장' })).toBeInTheDocument()
   })
 
+  test('a double click on add creates one cabinet', async () => {
+    renderAt('/rooms/r1')
+    await screen.findByRole('link', { name: 'A 시약장' })
+    const release = fake.hold('records.create')
+    await userEvent.type(screen.getByLabelText('새 보관장 이름'), 'B 시약장')
+    const add = screen.getByRole('button', { name: '보관장 추가' })
+    await userEvent.click(add)
+    await userEvent.click(add)
+    release()
+    expect(await screen.findByRole('link', { name: 'B 시약장' })).toBeInTheDocument()
+    expect(fake.called('records.create')).toHaveLength(1)
+  })
+
   test('copying a cabinet copies its zone names', async () => {
     fake.tables.Zones[0].name = '진한 산'
     renderAt('/rooms/r1')
@@ -108,7 +121,8 @@ describe('CabinetPage', () => {
     await userEvent.click(screen.getByRole('button', { name: '보관장 저장' }))
     expect(confirm.mock.calls[0][0]).toContain('3단 1칸')
     expect(confirm.mock.calls[0][0]).toContain('3단 2칸')
-    expect(fake.called('records.delete').map((p) => p.id).sort()).toEqual(['c1-3-1', 'c1-3-2'])
+    expect(fake.called('records.deleteMany')).toEqual([{ table: 'Zones', ids: ['c1-3-1', 'c1-3-2'] }])
+    expect(fake.called('records.delete')).toHaveLength(0)
     expect(fake.called('records.update')[0]).toMatchObject({ table: 'Cabinets', id: 'c1', changes: { rows: 2 } })
     expect(await screen.findAllByRole('gridcell')).toHaveLength(4)
   })
@@ -121,6 +135,21 @@ describe('CabinetPage', () => {
     await userEvent.type(screen.getByLabelText('단 수'), '1')
     await userEvent.click(screen.getByRole('button', { name: '보관장 저장' }))
     expect(fake.called('records.update')).toHaveLength(0)
-    expect(fake.called('records.delete')).toHaveLength(0)
+    expect(fake.called('records.deleteMany')).toHaveLength(0)
+  })
+
+  test('a double click on save while the first save is running does nothing', async () => {
+    renderAt('/cabinets/c1')
+    await screen.findAllByRole('gridcell')
+    const release = fake.hold('records.update')
+    await userEvent.clear(screen.getByLabelText('단 수'))
+    await userEvent.type(screen.getByLabelText('단 수'), '4')
+    const save = screen.getByRole('button', { name: '보관장 저장' })
+    await userEvent.click(save)
+    await userEvent.click(save)
+    release()
+    await waitFor(() => expect(screen.getAllByRole('gridcell')).toHaveLength(8))
+    expect(fake.called('records.update')).toHaveLength(1)
+    expect(fake.called('records.createMany')).toHaveLength(1)
   })
 })

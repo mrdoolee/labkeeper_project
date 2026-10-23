@@ -17,7 +17,7 @@ export function createFakeApi(seed: Record<string, Row[]> = {}) {
     switch (action) {
       case 'records.list': {
         const where = (p.where ?? {}) as Record<string, unknown>
-        return table.filter((r) => !r.deleted && Object.entries(where).every(([k, v]) => r[k] === v))
+        return table.filter((r) => (p.includeDeleted || !r.deleted) && Object.entries(where).every(([k, v]) => r[k] === v))
       }
       case 'records.create': {
         const row = stamp(p.values as Record<string, unknown>)
@@ -39,6 +39,16 @@ export function createFakeApi(seed: Record<string, Row[]> = {}) {
         row.deleted = true
         return row
       }
+      case 'records.deleteMany': {
+        const rows = table.filter((r) => (p.ids as string[]).includes(r.id))
+        rows.forEach((r) => (r.deleted = true))
+        return rows
+      }
+      case 'records.restore': {
+        const row = table.find((r) => r.id === p.id)!
+        row.deleted = false
+        return row
+      }
       case 'directory.list':
         return [{ id: 'u1', name: '김운영' }]
       case 'audit.list':
@@ -48,5 +58,20 @@ export function createFakeApi(seed: Record<string, Row[]> = {}) {
     }
   }
 
-  return { tables, calls, handle, called: (action: string) => calls.filter((c) => c.action === action).map((c) => c.payload) }
+  // hold(action): calls to that action wait until release() is called.
+  const held: Record<string, Promise<void> | undefined> = {}
+  function hold(action: string) {
+    let release!: () => void
+    held[action] = new Promise<void>((r) => (release = r))
+    return () => {
+      delete held[action]
+      release()
+    }
+  }
+  async function handleWithHold(action: string, payload: object = {}) {
+    if (held[action]) await held[action]
+    return handle(action, payload)
+  }
+
+  return { tables, calls, hold, handle: handleWithHold, called: (action: string) => calls.filter((c) => c.action === action).map((c) => c.payload) }
 }

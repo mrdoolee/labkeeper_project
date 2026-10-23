@@ -81,6 +81,19 @@ describe('RoomsPage', () => {
     expect(screen.getByRole('link', { name: '제1과학실' })).toBeInTheDocument()
   })
 
+  test('a double click on add creates one room', async () => {
+    renderRooms()
+    await screen.findByRole('link', { name: '제1과학실' })
+    const release = fake.hold('records.create')
+    await userEvent.type(screen.getByLabelText('새 교실 이름'), '제3과학실')
+    const add = screen.getByRole('button', { name: '교실 추가' })
+    await userEvent.click(add)
+    await userEvent.click(add)
+    release()
+    expect(await screen.findByRole('link', { name: '제3과학실' })).toBeInTheDocument()
+    expect(fake.called('records.create')).toHaveLength(1)
+  })
+
   test('adds, renames and deletes a room', async () => {
     renderRooms()
     await screen.findByRole('link', { name: '제1과학실' })

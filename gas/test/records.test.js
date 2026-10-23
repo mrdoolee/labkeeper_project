@@ -73,7 +73,7 @@ describe('validation', () => {
     expect(zone({ cabinetId: 'gone' }).error.code).toBe('NOT_FOUND')
     expect(zone({ allowedClasses: 'base,poison' }).error.code).toBe('INVALID')
     expect(zone({ allowedClasses: 'inorganic_acid,base' }).data.allowedClasses).toBe('inorganic_acid,base')
-    expect(zone({ allowedClasses: '' }).ok).toBe(true)
+    expect(zone({ col: 2, allowedClasses: '' }).ok).toBe(true)
   })
 })
 
@@ -147,5 +147,58 @@ describe('many rooms and cabinets', () => {
     })
     expect(res.error.code).toBe('INVALID')
     expect(call('records.list', { table: 'Zones' }).data).toHaveLength(0)
+  })
+})
+
+describe('one zone per slot', () => {
+  function zoneRows(cabinetId, rows, cols) {
+    const out = []
+    for (let row = 1; row <= rows; row++) for (let col = 1; col <= cols; col++) out.push({ cabinetId, row, col, name: `${row}단 ${col}칸` })
+    return out
+  }
+
+  test('a second createMany for the same slots (double click) is refused and adds nothing', () => {
+    const c = cabinet(room().id).data
+    expect(call('records.createMany', { table: 'Zones', rows: zoneRows(c.id, 3, 2) }).ok).toBe(true)
+    const again = call('records.createMany', { table: 'Zones', rows: [{ cabinetId: c.id, row: 3, col: 2, name: 'dup' }] })
+    expect(again.error.code).toBe('INVALID')
+    expect(call('records.list', { table: 'Zones', where: { cabinetId: c.id } }).data).toHaveLength(6)
+  })
+
+  test('duplicates inside one batch are refused', () => {
+    const c = cabinet(room().id).data
+    const res = call('records.createMany', {
+      table: 'Zones',
+      rows: [
+        { cabinetId: c.id, row: 1, col: 1, name: 'a' },
+        { cabinetId: c.id, row: 1, col: 1, name: 'b' },
+      ],
+    })
+    expect(res.error.code).toBe('INVALID')
+  })
+
+  test('a slot whose zone was deleted can be used again, but the old zone cannot then be restored on top of it', () => {
+    const c = cabinet(room().id).data
+    const [old] = call('records.createMany', { table: 'Zones', rows: [{ cabinetId: c.id, row: 1, col: 1, name: 'old' }] }).data
+    call('records.delete', { table: 'Zones', id: old.id })
+    expect(call('records.create', { table: 'Zones', values: { cabinetId: c.id, row: 1, col: 1, name: 'new' } }).ok).toBe(true)
+    expect(call('records.restore', { table: 'Zones', id: old.id }).error.code).toBe('INVALID')
+  })
+})
+
+describe('records.deleteMany', () => {
+  test('soft-deletes several rows under one lock and logs each', () => {
+    const r = room()
+    const ids = [room('a').id, room('b').id, room('c').id]
+    const locksBefore = gas.fakes.lockCalls.wait
+    const res = call('records.deleteMany', { table: 'Rooms', ids })
+    expect(res.data).toHaveLength(3)
+    expect(gas.fakes.lockCalls.wait - locksBefore).toBe(1)
+    expect(call('records.list', { table: 'Rooms' }).data.map((x) => x.id)).toEqual([r.id])
+    expect(call('audit.list', { table: 'Rooms', limit: 3 }).data.map((a) => a.action)).toEqual(['delete', 'delete', 'delete'])
+  })
+
+  test('is limited to record tables', () => {
+    expect(call('records.deleteMany', { table: 'Users', ids: ['x'] }).error.code).toBe('FORBIDDEN')
   })
 })

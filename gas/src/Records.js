@@ -8,6 +8,7 @@ function recordsActions() {
     'records.createMany': { auth: 'user', write: true, handler: recordsCreateMany },
     'records.update': { auth: 'user', write: true, handler: recordsUpdate },
     'records.delete': { auth: 'user', write: true, handler: recordsDelete },
+    'records.deleteMany': { auth: 'user', write: true, handler: recordsDeleteMany },
     'records.restore': { auth: 'user', write: true, handler: recordsRestore },
     'audit.list': { auth: 'user', write: false, handler: auditList },
   };
@@ -61,6 +62,20 @@ function existsIn(lookup, table, id) {
   return typeof id === 'string' && lookup[table][id] === true;
 }
 
+// One live zone per (cabinet, row, col). Slots taken earlier in the same
+// batch count too, so a double-clicked save cannot create a second zone.
+function claimZoneSlot(lookup, zone) {
+  if (!lookup.zoneSlots) {
+    lookup.zoneSlots = {};
+    dbList('Zones').forEach(function (z) {
+      lookup.zoneSlots[z.cabinetId + ':' + z.row + ':' + z.col] = true;
+    });
+  }
+  var key = zone.cabinetId + ':' + zone.row + ':' + zone.col;
+  if (lookup.zoneSlots[key]) throw invalid(zone.row + '단 ' + zone.col + '칸에는 이미 구역이 있습니다. 화면을 새로 고쳐 주세요.');
+  lookup.zoneSlots[key] = true;
+}
+
 function validateRecord(table, values, isCreate, lookup) {
   Object.keys(values).forEach(function (key) {
     if (RECORD_TABLES[table].indexOf(key) < 0) throw invalid('알 수 없는 항목입니다: ' + key);
@@ -89,6 +104,7 @@ function validateRecord(table, values, isCreate, lookup) {
     }
     checkInteger(values, 'row', '단', isCreate, 1, 20);
     checkInteger(values, 'col', '칸', isCreate, 1, 20);
+    if (isCreate) claimZoneSlot(lookup, values);
     checkText(values, 'name', '구역 이름', false, 100);
     if (values.allowedClasses !== undefined) {
       if (typeof values.allowedClasses !== 'string') throw invalid('허용 보관 분류 값이 올바르지 않습니다.');
@@ -132,8 +148,19 @@ function recordsDelete(payload, user) {
   return dbSoftDelete(recordTable(payload.table), payload.id, user);
 }
 
+function recordsDeleteMany(payload, user) {
+  var table = recordTable(payload.table);
+  if (!Array.isArray(payload.ids)) throw invalid('ids 값이 올바르지 않습니다.');
+  return payload.ids.map(function (id) {
+    return dbSoftDelete(table, id, user);
+  });
+}
+
 function recordsRestore(payload, user) {
-  return dbRestore(recordTable(payload.table), payload.id, user);
+  var table = recordTable(payload.table);
+  var row = dbGet(table, payload.id);
+  if (row && table === 'Zones' && row.deleted) claimZoneSlot({}, row);
+  return dbRestore(table, payload.id, user);
 }
 
 function auditList(payload) {

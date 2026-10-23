@@ -48,4 +48,13 @@ export const records = {
   remove<T extends TableName>(table: T, id: string) {
     return callApi<Tables[T]>('records.delete', { table, id })
   },
+  removeMany<T extends TableName>(table: T, ids: string[]) {
+    return callApi<Tables[T][]>('records.deleteMany', { table, ids })
+  },
+  restore<T extends TableName>(table: T, id: string) {
+    return callApi<Tables[T]>('records.restore', { table, id })
+  },
+  listDeleted<T extends TableName>(table: T, where?: Record<string, unknown>) {
+    return callApi<Tables[T][]>('records.list', { table, where: where ?? {}, includeDeleted: true }).then((rows) => rows.filter((r) => r.deleted))
+  },
 }
