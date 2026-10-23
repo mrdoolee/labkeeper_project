@@ -40,7 +40,7 @@ describe('callApi', () => {
 
   test('throws ApiError with the server code and Korean message on ok:false', async () => {
     reply({ ok: false, error: { code: 'INVALID', message: '교실 이름을(를) 입력해 주세요.' } })
-    const err = await callApi('records.create').catch((e) => e)
+    const err = await callApi('records.create').catch((e: ApiError) => e)
     expect(err).toBeInstanceOf(ApiError)
     expect(err.code).toBe('INVALID')
     expect(err.message).toBe('교실 이름을(를) 입력해 주세요.')
