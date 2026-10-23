@@ -1,0 +1,12 @@
+{
+  "name": "labkeeper-gas",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "dev": "node dev-server.mjs"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.5"
+  }
+}
