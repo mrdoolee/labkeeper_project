@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 로그인·계정 관리, 학교 설정, 과학실·보관장·구역 관리가 되고, 모든 변경이 작성자와 함께 기록되는 LabKeeper의 기본 틀을 만든다.
+**Goal:** 로그인·계정 관리, 학교 설정, 교실·보관장·구역 관리가 되고, 모든 변경이 작성자와 함께 기록되는 LabKeeper의 기본 틀을 만든다.
 
 **Architecture:** `gas/`는 Apps Script 웹앱(스프레드시트에 붙은 스크립트)으로, 로그인·표 읽기/쓰기·변경 이력만 맡는 얇은 서버다. Node에서 가짜 Google 서비스로 같은 코드를 실행해 테스트하고, 같은 방식으로 로컬 개발 서버도 띄운다. `web/`은 Vite + React + TypeScript 화면이고, 판정·계산 같은 순수 로직은 `web/src/domain`에 둔다.
 
@@ -49,7 +49,7 @@ gas/
     Auth.js               해시, 세션, 로그인 잠금, 첫 관리자, 비밀번호 변경
     Users.js              users.* (admin 전용)
     Settings.js           settings.get / settings.update
-    Records.js            records.* 공통 CRUD (Labs, Cabinets, Zones), audit.list
+    Records.js            records.* 공통 CRUD (Rooms, Cabinets, Zones), audit.list
   test/
     fakes.js              가짜 SpreadsheetApp, Utilities, CacheService, LockService, ContentService
     loadGas.js            src/*.js를 node:vm 컨텍스트에 올리고 call(action, payload, token) 도우미 제공
@@ -62,7 +62,7 @@ web/
     api/client.ts         callApi, 토큰 저장
     auth/AuthContext.tsx  로그인 상태
     domain/storage.ts     보관 분류·보관장 종류 데이터, 기본 허용 분류, 구역 격자 계산
-    pages/                SetupPage, LoginPage, ChangePasswordPage, HomePage, UsersPage, SettingsPage, LabsPage, CabinetPage
+    pages/                SetupPage, LoginPage, ChangePasswordPage, HomePage, UsersPage, SettingsPage, RoomsPage, RoomPage, CabinetPage
     components/           Layout, HistoryDialog
     styles.css
 docs/setup-guide.md       GAS 배포·Vercel 연결 안내
@@ -114,19 +114,19 @@ docs/setup-guide.md       GAS 배포·Vercel 연결 안내
 - Test: `gas/test/db.test.js`
 
 **Interfaces:**
-- Produces: `TABLES` — `{ Users: [...], Settings: [...], Labs: [...], Cabinets: [...], Zones: [...], AuditLog: [...] }` 열 이름 배열(공통 열 포함, AuditLog 제외).
+- Produces: `TABLES` — `{ Users: [...], Settings: [...], Rooms: [...], Cabinets: [...], Zones: [...], AuditLog: [...] }` 열 이름 배열(공통 열 포함, AuditLog 제외).
   - Users: `loginId, name, role, salt, hash, mustChangePassword, active`
   - Settings: `key, value`
-  - Labs: `name, note`
-  - Cabinets: `labId, name, type, locked, rows, cols, note`
+  - Rooms: `name, isLab, note` (`isLab`: 과학실이면 true → 월간 점검표 대상)
+  - Cabinets: `roomId, name, type, locked, rows, cols, note`
   - Zones: `cabinetId, row, col, name, allowedClasses` (`allowedClasses`는 쉼표로 이은 분류 id, `row` 1이 맨 위)
-- Produces: `dbList(table, { includeDeleted?: boolean, where?: object }): object[]`, `dbGet(table, id): object|null`, `dbCreate(table, values, user): object`, `dbUpdate(table, id, changes, user): object`, `dbSoftDelete(table, id, user): object`, `dbRestore(table, id, user): object`, `dbAudit(user, table, recordId, action, before, after): void`. `user`는 `{ id, name }`. 반환 객체의 boolean·숫자 열은 JS 타입으로 돌려준다(`deleted`, `locked`, `active`, `mustChangePassword`, `labOver100m2` → boolean, `rows`, `cols`, `row`, `col` → number).
+- Produces: `dbList(table, { includeDeleted?: boolean, where?: object }): object[]`, `dbGet(table, id): object|null`, `dbCreate(table, values, user): object`, `dbUpdate(table, id, changes, user): object`, `dbSoftDelete(table, id, user): object`, `dbRestore(table, id, user): object`, `dbAudit(user, table, recordId, action, before, after): void`. `user`는 `{ id, name }`. 반환 객체의 boolean·숫자 열은 JS 타입으로 돌려준다(`deleted`, `locked`, `active`, `mustChangePassword`, `labOver100m2`, `isLab` → boolean, `rows`, `cols`, `row`, `col` → number).
 
 - [ ] **Step 1: 실패하는 테스트** — `db.test.js`
-  - `dbCreate('Labs', { name: '제1과학실' }, u)` → `id` 생성, `createdBy === u.id`, `createdAt`이 ISO 문자열, `deleted === false`; 시트가 없으면 머리글 행과 함께 만들어진다.
+  - `dbCreate('Rooms', { name: '제1과학실', isLab: true }, u)` → `id` 생성, `createdBy === u.id`, `createdAt`이 ISO 문자열, `deleted === false`; 시트가 없으면 머리글 행과 함께 만들어진다.
   - `dbUpdate`가 `updatedBy/updatedAt`을 바꾸고, `AuditLog`에 `action: 'update'`와 `before.name`/`after.name`이 남는다.
-  - `dbSoftDelete` 후 `dbList('Labs')`에 없고 `dbList('Labs', { includeDeleted: true })`에는 `deleted: true, deletedBy: u.id`로 있음. `dbRestore` 후 다시 보임. 둘 다 이력에 남음.
-  - (Review Focus 1) `dbCreate('Labs', { name: '=SUM(A1)' }, u)` → 가짜 시트 셀 값이 `"'=SUM(A1)"`, `dbGet`은 `'=SUM(A1)'`을 돌려준다. `-1번`, `+`, `@` 시작도 같은 방식.
+  - `dbSoftDelete` 후 `dbList('Rooms')`에 없고 `dbList('Rooms', { includeDeleted: true })`에는 `deleted: true, deletedBy: u.id`로 있음. `dbRestore` 후 다시 보임. 둘 다 이력에 남음.
+  - (Review Focus 1) `dbCreate('Rooms', { name: '=SUM(A1)' }, u)` → 가짜 시트 셀 값이 `"'=SUM(A1)"`, `dbGet`은 `'=SUM(A1)'`을 돌려준다. `-1번`, `+`, `@` 시작도 같은 방식.
   - (Review Focus 2) 가짜 시트의 열 순서를 바꾸고(머리글과 값을 함께 섞음) 머리글에 없는 `메모` 열을 끼워 넣어도 `dbList`가 같은 객체를 돌려주고, `dbCreate`가 머리글 위치에 맞게 쓴다.
   - `dbUpdate`에 표에 없는 열을 넣으면 `INVALID`.
 - [ ] **Step 2:** `npm test` → FAIL
@@ -195,7 +195,7 @@ docs/setup-guide.md       GAS 배포·Vercel 연결 안내
 - [ ] **Step 4:** PASS 확인
 - [ ] **Step 5:** 커밋 `feat(gas): user management and settings`
 
-### Task 6: 공통 기록 액션 (과학실·보관장·구역)과 변경 이력 조회
+### Task 6: 공통 기록 액션 (교실·보관장·구역)과 변경 이력 조회
 
 **Files:**
 - Create: `gas/src/Records.js`
@@ -204,7 +204,7 @@ docs/setup-guide.md       GAS 배포·Vercel 연결 안내
 
 **Interfaces:**
 - Consumes: Task 3
-- Produces: `RECORD_TABLES` — 쓰기 허용 표와 열: `Labs: ['name','note']`, `Cabinets: ['labId','name','type','locked','rows','cols','note']`, `Zones: ['cabinetId','row','col','name','allowedClasses']`. 이후 단계(M2~)는 여기에 표를 추가한다.
+- Produces: `RECORD_TABLES` — 쓰기 허용 표와 열: `Rooms: ['name','isLab','note']`, `Cabinets: ['roomId','name','type','locked','rows','cols','note']`, `Zones: ['cabinetId','row','col','name','allowedClasses']`. 이후 단계(M2~)는 여기에 표를 추가한다.
 - Produces (액션, 모두 user):
   - `records.list` `{ table, where?, includeDeleted? }` → 행 배열
   - `records.create` (write) `{ table, values }` → 행
@@ -213,9 +213,9 @@ docs/setup-guide.md       GAS 배포·Vercel 연결 안내
   - `records.delete` (write) `{ table, id }` → 행
   - `records.restore` (write) `{ table, id }` → 행
   - `audit.list` `{ table?, recordId?, limit? }` → 최근 순 이력(기본 100개)
-- 검사: `RECORD_TABLES`에 없는 표(`Users`, `AuditLog`, `Settings` 포함) → `FORBIDDEN`; 허용되지 않은 열 → `INVALID`; `Cabinets.type`은 보관장 종류 id 중 하나, `rows`·`cols`는 1~20 정수; `Zones.allowedClasses`의 각 값은 보관 분류 id 중 하나; `Cabinets.labId`, `Zones.cabinetId`는 존재하는 행이어야 함(`NOT_FOUND`).
+- 검사: `RECORD_TABLES`에 없는 표(`Users`, `AuditLog`, `Settings` 포함) → `FORBIDDEN`; 허용되지 않은 열 → `INVALID`; `Cabinets.type`은 보관장 종류 id 중 하나, `rows`·`cols`는 1~20 정수; `Zones.allowedClasses`의 각 값은 보관 분류 id 중 하나; `Cabinets.roomId`, `Zones.cabinetId`는 존재하는 행이어야 함(`NOT_FOUND`); `records.list`의 `where`는 같은 값 비교로 걸러서 보낸다(예: `{ cabinetId }`로 한 보관장의 구역만). 교실·보관장이 많아도 화면이 필요한 것만 받도록 한다.
 
-- [ ] **Step 1: 실패하는 테스트** — 위 검사 각각, teacher가 `records.delete` 가능, `records.createMany`가 락을 한 번만 잡음(fakes의 락 호출 횟수), `audit.list({ table: 'Labs', recordId })`가 create→update→delete 순서의 반대로 나옴
+- [ ] **Step 1: 실패하는 테스트** — 위 검사 각각, 보관장 30개·구역 600개가 있을 때 `records.list({ table: 'Zones', where: { cabinetId } })`가 그 보관장의 구역만 돌려줌, teacher가 `records.delete` 가능, `records.createMany`가 락을 한 번만 잡음(fakes의 락 호출 횟수), `audit.list({ table: 'Rooms', recordId })`가 create→update→delete 순서의 반대로 나옴
 - [ ] **Step 2:** FAIL 확인
 - [ ] **Step 3:** 구현
 - [ ] **Step 4:** PASS 확인
@@ -251,12 +251,14 @@ docs/setup-guide.md       GAS 배포·Vercel 연결 안내
   - `CABINET_TYPES: { id: CabinetType; label: string; defaultClasses: StorageClassId[] }[]` — `sealed`: 무기산·유기산·염기·위험 무기·금속, `flammable`: 인화성, `general`: 일반 무기·일반 유기, 나머지: 빈 배열
   - `interface ZoneRow { id?: string; cabinetId: string; row: number; col: number; name: string; allowedClasses: string }`
   - `planZones(cabinet: { id: string; type: CabinetType; rows: number; cols: number }, existing: ZoneRow[]): { create: ZoneRow[]; remove: string[] }` — 격자 안에 없는 칸은 새로 만들고(이름 `"{row}단 {col}칸"`, 허용 분류는 보관장 종류 기본값), 격자 밖으로 나간 기존 구역 id는 `remove`에 넣는다. 이미 있는 칸은 건드리지 않는다.
+  - `copyZones(source: ZoneRow[], newCabinetId: string): ZoneRow[]` — 보관장 복제용. id를 빼고 `cabinetId`만 바꿔 이름·허용 분류·위치를 그대로 복사한다. 삭제된 구역은 복사하지 않는다.
 
 - [ ] **Step 1: 실패하는 테스트**
   - 3×2 밀폐형, 기존 없음 → `create` 6개, 첫 칸 이름 `"1단 1칸"`, `allowedClasses === 'inorganic_acid,organic_acid,base,reactive_inorganic,metal'`, `remove` 빈 배열
   - (Review Focus 5) 3×2 → 2×2로 줄이면 3단의 두 구역 id가 `remove`, `create` 빈 배열
   - 2×2 → 2×3으로 늘리면 `create` 2개만, 기존 이름을 바꾼 구역은 그대로 유지
   - `STORAGE_CLASSES`가 8개이고 id가 위 타입과 같음
+  - `copyZones`: 이름을 바꾼 구역 2개를 복사하면 새 cabinetId, 같은 이름·허용 분류, id 없음
 - [ ] **Step 2:** `cd web && npm test` → FAIL
 - [ ] **Step 3:** 구현
 - [ ] **Step 4:** PASS 확인
@@ -292,7 +294,7 @@ docs/setup-guide.md       GAS 배포·Vercel 연결 안내
 
 **Interfaces:**
 - Consumes: Task 9
-- Produces: 라우트 `/`(홈), `/settings`, `/labs`, `/labs/:labId/cabinets/:cabinetId`, `/users`(admin만 메뉴 표시). 분기 순서: `needsSetup` → SetupPage, 로그인 안 됨 → LoginPage, `mustChangePassword` → ChangePasswordPage, 그 외 Layout(왼쪽 메뉴: 홈, 과학실·보관장, 설정, 계정 관리(admin)) 안의 화면. 상단에 로그인한 사람 이름과 로그아웃.
+- Produces: 라우트 `/`(홈), `/settings`, `/rooms`, `/rooms/:roomId`, `/cabinets/:cabinetId`, `/users`(admin만 메뉴 표시). 분기 순서: `needsSetup` → SetupPage, 로그인 안 됨 → LoginPage, `mustChangePassword` → ChangePasswordPage, 그 외 Layout(왼쪽 메뉴: 홈, 교실·보관장, 설정, 계정 관리(admin)) 안의 화면. 상단에 로그인한 사람 이름과 로그아웃.
 - 화면 디자인 방향은 `ui-ux-pro-max` 스킬로 정한다(관리 도구, 밀도 높은 표, 차분한 색). 색·글꼴은 `styles.css`의 CSS 변수 하나에 모은다.
 
 - [ ] **Step 1: 실패하는 테스트** (`callApi` 가짜): `needsSetup: true`면 "운영 교사 계정 만들기" 화면; 로그인 안 됐으면 아이디·비밀번호 입력란; 로그인 실패 시 서버 메시지 표시; `mustChangePassword`면 비밀번호 변경 화면; teacher에게 "계정 관리" 메뉴가 없음
@@ -319,23 +321,25 @@ docs/setup-guide.md       GAS 배포·Vercel 연결 안내
 - [ ] **Step 4:** PASS 확인
 - [ ] **Step 5:** 커밋 `feat(web): user management, settings and history dialog`
 
-### Task 12: 과학실·보관장·구역 화면
+### Task 12: 교실·보관장·구역 화면 (교실과 보관장이 많은 학교 기준)
 
 **Files:**
-- Create: `web/src/pages/LabsPage.tsx`, `web/src/pages/CabinetPage.tsx`
-- Test: `web/src/pages/CabinetPage.test.tsx`
+- Create: `web/src/pages/RoomsPage.tsx`, `web/src/pages/RoomPage.tsx`, `web/src/pages/CabinetPage.tsx`, `web/src/components/CabinetSearch.tsx`
+- Test: `web/src/pages/RoomsPage.test.tsx`, `web/src/pages/CabinetPage.test.tsx`
 
 **Interfaces:**
-- Consumes: Task 6 `records.*`, Task 8 `planZones`, `CABINET_TYPES`, `STORAGE_CLASSES`, Task 11 `HistoryDialog`, Task 5 `directory.list`(작성자 id → 이름)
-- LabsPage: 과학실 추가·이름 변경·삭제(확인 창), 과학실별 보관장 목록과 추가(이름, 종류, 잠금 여부, 단 수, 칸 수). 보관장 저장 후 `planZones` 결과로 `records.createMany('Zones')`와 `records.delete`를 부른다.
-- CabinetPage: 보관장을 단(위→아래) × 칸 격자로 그린다. 칸을 누르면 오른쪽에 구역 이름과 허용 보관 분류(체크박스 8개) 편집, "변경 이력" 버튼. 단·칸 수를 바꾸면 줄어드는 구역 목록을 보여 주고 확인을 받은 뒤 반영(Review Focus 5).
+- Consumes: Task 6 `records.*`, Task 8 `planZones`, `copyZones`, `CABINET_TYPES`, `STORAGE_CLASSES`, Task 11 `HistoryDialog`, Task 5 `directory.list`(작성자 id → 이름)
+- RoomsPage(`/rooms`): 교실 표(이름, 과학실 여부, 보관장 수, 마지막 수정자·일시), 이름 검색, "과학실만 보기", 교실 추가·이름 변경·삭제(확인 창). 보관장 수는 `records.list('Cabinets')` 한 번으로 세어 교실별로 묶는다.
+- RoomPage(`/rooms/:roomId`): 그 교실의 보관장 표(이름, 종류, 잠금, 단×칸, 마지막 수정자·일시), 이름 검색, 보관장 추가(이름, 종류, 잠금 여부, 단 수, 칸 수), **복제**(새 이름을 받아 같은 종류·크기로 만들고 `copyZones` 결과를 `records.createMany('Zones')`), 삭제. 새 보관장 저장 후 `planZones` 결과로 구역을 만든다.
+- CabinetSearch: 상단 바에 두는 보관장 이름 검색. 입력하면 "교실 › 보관장" 목록을 보여 주고 고르면 `/cabinets/:id`로 이동. 목록은 `records.list('Cabinets')`와 `records.list('Rooms')`를 한 번 받아 브라우저에서 거른다.
+- CabinetPage(`/cabinets/:cabinetId`): 위치 경로("교실 › 보관장"), 보관장을 단(위→아래) × 칸 격자로 그림. 구역은 `records.list('Zones', { where: { cabinetId } })`로 그 보관장 것만 받는다. 칸을 누르면 오른쪽에 구역 이름과 허용 보관 분류(체크박스 8개) 편집, "변경 이력" 버튼. 단·칸 수를 바꾸면 줄어드는 구역 목록을 보여 주고 확인을 받은 뒤 반영(Review Focus 5).
 - 각 행 옆에 마지막 수정자 이름(`directory.list`로 id → 이름)과 일시를 작게 표시.
 
-- [ ] **Step 1: 실패하는 테스트**: 3×2 보관장 저장 시 `records.createMany`에 6개 구역; 격자에 "1단 1칸"이 맨 위 왼쪽; 단 수를 줄이면 확인 창에 사라질 구역 이름이 나오고 확인 후 `records.delete` 호출
+- [ ] **Step 1: 실패하는 테스트**: 교실 3개·보관장 7개일 때 RoomsPage에 교실별 보관장 수가 맞게 나옴; "과학실만 보기"가 걸러짐; 3×2 보관장 저장 시 `records.createMany`에 6개 구역; 보관장 복제 시 새 보관장 생성 후 같은 이름의 구역이 `records.createMany`로 전달; CabinetSearch에 이름 일부를 치면 "교실 › 보관장"이 나오고 고르면 이동; 격자에 "1단 1칸"이 맨 위 왼쪽; 단 수를 줄이면 확인 창에 사라질 구역 이름이 나오고 확인 후 `records.delete` 호출
 - [ ] **Step 2:** FAIL 확인
 - [ ] **Step 3:** 구현
 - [ ] **Step 4:** PASS 확인
-- [ ] **Step 5:** 커밋 `feat(web): labs, cabinets and zone grid screens`
+- [ ] **Step 5:** 커밋 `feat(web): rooms, cabinets and zone grid screens`
 
 ### Task 13: 배포 안내서와 통합 확인
 
@@ -348,7 +352,7 @@ docs/setup-guide.md       GAS 배포·Vercel 연결 안내
 - `docs/setup-guide.md` (한국어, 화면별 단계): ① 구글 스프레드시트 새로 만들기(이름 "LabKeeper DB") ② 확장 프로그램 → Apps Script ③ `gas/src`의 파일을 같은 이름으로 만들어 붙여 넣기 ④ 배포 → 새 배포 → 웹 앱, "다음 사용자 인증 정보로 실행: 나", "액세스 권한: 모든 사용자" ⑤ 권한 승인 ⑥ 웹 앱 URL 복사 ⑦ 코드를 고친 뒤에는 "배포 관리 → 수정 → 새 버전"으로 같은 URL 유지 ⑧ Vercel: 저장소 연결, Root Directory `web`, 환경 변수 `VITE_GAS_URL` ⑨ 첫 접속 시 운영 교사 계정 만들기.
 - Playwright는 설치된 Chromium(`executablePath`는 `/opt/pw-browsers/chromium-*/chrome-linux/chrome`)을 쓰고 브라우저를 내려받지 않는다.
 
-- [ ] **Step 1: 통합 시나리오 작성**: 개발 서버 + `vite` 실행 → 운영 교사 만들기 → 일반 교사 계정 만들기(임시 비밀번호 받기) → 로그아웃 → 일반 교사로 로그인, 비밀번호 변경 → 과학실 추가 → 밀폐형 보관장 3×2 추가 → 구역 이름 바꾸기 → 변경 이력에 일반 교사 이름이 보임
+- [ ] **Step 1: 통합 시나리오 작성**: 개발 서버 + `vite` 실행 → 운영 교사 만들기 → 일반 교사 계정 만들기(임시 비밀번호 받기) → 로그아웃 → 일반 교사로 로그인, 비밀번호 변경 → 교실 2개 추가(과학실 1, 준비실 1) → 밀폐형 보관장 3×2 추가 → 구역 이름 바꾸기 → 보관장 복제 → 상단 검색으로 복제한 보관장 찾아 들어가기 → 변경 이력에 일반 교사 이름이 보임
 - [ ] **Step 2:** 실행해 PASS 확인, 주요 화면 스크린샷을 `docs/screenshots/m1/`에 저장
 - [ ] **Step 3:** 안내서·README·CLAUDE.md 작성
 - [ ] **Step 4:** `cd gas && npm test && cd ../web && npm test && npm run build` 모두 PASS
@@ -359,5 +363,5 @@ docs/setup-guide.md       GAS 배포·Vercel 연결 안내
 ## 사용자 확인 (M1 끝)
 
 - 선생님이 `docs/setup-guide.md`대로 GAS를 배포하고 URL을 알려 준다.
-- Vercel 연결 후(또는 로컬 미리보기로) 운영 교사 계정을 만들고, 과학실·보관장을 실제 학교 기준으로 입력해 본다.
+- Vercel 연결 후(또는 로컬 미리보기로) 운영 교사 계정을 만들고, 교실·보관장을 실제 학교 기준으로 입력해 본다.
 - 실제 GAS에서만 확인할 수 있는 것: 해시 1000회 반복의 속도(로그인 1~2초 이내인지), 첫 실행 권한 승인 흐름.
