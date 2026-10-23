@@ -102,7 +102,9 @@ function dbGet(table, id) {
   return found ? typed(table, found.record) : null;
 }
 
-function dbCreate(table, values, user) {
+// options.skipAudit: the caller writes its own audit entry (Settings does,
+// so its history is keyed by setting name).
+function dbCreate(table, values, user, options) {
   checkColumns(table, values);
   var t = openTable(table);
   var now = nowIso();
@@ -124,7 +126,7 @@ function dbCreate(table, values, user) {
     }),
   );
   var created = typed(table, row);
-  dbAudit(user, table, created.id, 'create', null, created);
+  if (!(options && options.skipAudit)) dbAudit(user, table, created.id, 'create', null, created);
   return created;
 }
 
@@ -141,7 +143,7 @@ function writeFields(table, id, fields) {
   return { before: before, after: typed(table, found.record) };
 }
 
-function dbUpdate(table, id, changes, user) {
+function dbUpdate(table, id, changes, user, options) {
   checkColumns(table, changes);
   var fields = Object.assign({}, changes, { updatedBy: user.id, updatedAt: nowIso() });
   var result = writeFields(table, id, fields);
@@ -153,7 +155,7 @@ function dbUpdate(table, id, changes, user) {
       after[key] = result.after[key];
     }
   });
-  dbAudit(user, table, id, 'update', before, after);
+  if (!(options && options.skipAudit)) dbAudit(user, table, id, 'update', before, after);
   return result.after;
 }
 

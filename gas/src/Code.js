@@ -7,7 +7,7 @@
 var ACTIONS = {};
 
 function registerActions() {
-  var groups = [authActions()];
+  var groups = [authActions(), usersActions(), settingsActions()];
   groups.forEach(function (group) {
     Object.keys(group).forEach(function (name) {
       if (!ACTIONS[name]) ACTIONS[name] = group[name];
