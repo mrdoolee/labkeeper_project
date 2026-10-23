@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { ApiError, callApi, getToken, setOnAuthRequired, setToken } from './client'
+import { setGasUrl } from './connection'
 
-const URL = 'http://gas.example/exec'
+const URL = 'https://script.google.com/macros/s/AKfyTest/exec'
 let fetchMock: ReturnType<typeof vi.fn>
 
 function reply(body: unknown) {
@@ -9,7 +10,7 @@ function reply(body: unknown) {
 }
 
 beforeEach(() => {
-  vi.stubEnv('VITE_GAS_URL', URL)
+  setGasUrl(URL)
   fetchMock = vi.fn()
   vi.stubGlobal('fetch', fetchMock)
   setToken(null)
@@ -22,6 +23,21 @@ afterEach(() => {
 })
 
 describe('callApi', () => {
+  test('without a connected spreadsheet it fails before any request', async () => {
+    setGasUrl(null)
+    const err = (await callApi('records.list').catch((e) => e)) as ApiError
+    expect(err.code).toBe('NO_CONNECTION')
+    expect(err.message).toBe('연결된 스프레드시트가 없습니다.')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  test('can send to another address (connection test)', async () => {
+    const other = 'https://script.google.com/macros/s/Other/exec'
+    reply({ ok: true, data: 1 })
+    await callApi('system.info', undefined, other)
+    expect(fetchMock.mock.calls[0][0]).toBe(other)
+  })
+
   test('posts action, token and payload as text/plain JSON to the GAS URL', async () => {
     setToken('tok-1')
     reply({ ok: true, data: { n: 1 } })

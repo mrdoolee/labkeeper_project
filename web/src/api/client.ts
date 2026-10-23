@@ -1,5 +1,6 @@
 // Talks to the GAS web app. Requests are text/plain so the browser sends them
 // without a CORS preflight, which Apps Script cannot answer.
+import { getGasUrl } from './connection'
 
 export class ApiError extends Error {
   code: string
@@ -35,10 +36,12 @@ export function setOnAuthRequired(fn: () => void): void {
   onAuthRequired = fn
 }
 
-export async function callApi<T>(action: string, payload?: object): Promise<T> {
+/** Sends to the connected school's GAS, or to `url` (used to test an address before saving it). */
+export async function callApi<T>(action: string, payload?: object, url: string | null = getGasUrl()): Promise<T> {
+  if (!url) throw new ApiError('NO_CONNECTION', '연결된 스프레드시트가 없습니다.')
   let body: { ok: boolean; data?: T; error?: { code: string; message: string } }
   try {
-    const res = await fetch(import.meta.env.VITE_GAS_URL, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action, token: getToken() ?? undefined, payload }),
