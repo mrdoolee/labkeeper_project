@@ -1,5 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { callApi, getToken, setOnAuthRequired, setToken } from '../api/client'
+import { getGasUrl, setGasUrl, takeGasFromQuery } from '../api/connection'
+import { fetchSystemInfo, REQUIRED_API_VERSION, type SystemInfo } from '../api/system'
 
 export interface User {
   id: string
@@ -10,54 +12,126 @@ export interface User {
   active: boolean
 }
 
+export type ConnectionState = 'none' | 'checking' | 'error' | 'copied' | 'outdated' | 'needsAdmin' | 'switch' | 'ready'
+
+export interface Connection {
+  state: ConnectionState
+  info: SystemInfo | null
+  /** A school link to a different spreadsheet, waiting for the user to accept it. */
+  pending: { url: string; info: SystemInfo | null } | null
+  /** The address used before "주소 바꾸기", to prefill the connect screen. */
+  lastUrl: string | null
+}
+
 interface AuthState {
   user: User | null
   loading: boolean
-  needsSetup: boolean
+  connection: Connection
+  connect(url: string): Promise<void>
+  disconnect(): void
+  recheck(): Promise<void>
+  acceptSwitch(): Promise<void>
+  rejectSwitch(): Promise<void>
   login(loginId: string, password: string): Promise<void>
-  setupAdmin(loginId: string, name: string, password: string): Promise<void>
   logout(): Promise<void>
   refresh(): Promise<void>
 }
 
 const AuthContext = createContext<AuthState | null>(null)
 
+function stateFor(info: SystemInfo): ConnectionState {
+  if (info.copied) return 'copied'
+  if (info.apiVersion < REQUIRED_API_VERSION) return 'outdated'
+  if (info.needsSetup) return 'needsAdmin'
+  return 'ready'
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
-  const [needsSetup, setNeedsSetup] = useState(false)
+  const [connection, setConnection] = useState<Connection>({ state: 'checking', info: null, pending: null, lastUrl: null })
+  const started = useRef(false)
 
-  const refresh = useCallback(async () => {
+  const loadUser = useCallback(async () => {
     setLoading(true)
     try {
-      const status = await callApi<{ needsSetup: boolean }>('setup.status')
-      setNeedsSetup(status.needsSetup)
-      setUser(!status.needsSetup && getToken() ? await callApi<User>('auth.me').catch(() => null) : null)
+      setUser(getToken() ? await callApi<User>('auth.me').catch(() => null) : null)
     } finally {
       setLoading(false)
     }
   }, [])
 
+  // Asks the saved school's GAS how things stand, then loads the user when ready.
+  const recheck = useCallback(async () => {
+    if (!getGasUrl()) {
+      setConnection((c) => ({ ...c, state: 'none', info: null, pending: null }))
+      setUser(null)
+      setLoading(false)
+      return
+    }
+    setConnection((c) => ({ ...c, state: 'checking' }))
+    let info: SystemInfo
+    try {
+      info = await fetchSystemInfo()
+    } catch {
+      setConnection((c) => ({ ...c, state: 'error', info: null, pending: null }))
+      setLoading(false)
+      return
+    }
+    const state = stateFor(info)
+    setConnection((c) => ({ ...c, state, info, pending: null }))
+    if (state === 'ready') await loadUser()
+    else {
+      setUser(null)
+      setLoading(false)
+    }
+  }, [loadUser])
+
   useEffect(() => {
     setOnAuthRequired(() => setUser(null))
-    refresh().catch(() => {})
-  }, [refresh])
+    if (started.current) return
+    started.current = true
+    const fromLink = takeGasFromQuery()
+    const current = getGasUrl()
+    if (fromLink && current && fromLink !== current) {
+      // A link to another school: ask before switching (a forged link must not silently take over).
+      Promise.all([fetchSystemInfo().catch(() => null), fetchSystemInfo(fromLink).catch(() => null)]).then(([info, linkInfo]) => {
+        setConnection({ state: 'switch', info, pending: { url: fromLink, info: linkInfo }, lastUrl: null })
+        setLoading(false)
+      })
+      return
+    }
+    if (fromLink && !current) setGasUrl(fromLink)
+    recheck().catch(() => {})
+  }, [recheck])
 
   const value = useMemo<AuthState>(
     () => ({
       user,
       loading,
-      needsSetup,
-      refresh,
+      connection,
+      recheck,
+      refresh: recheck,
+      async connect(url) {
+        setGasUrl(url)
+        await recheck()
+      },
+      disconnect() {
+        const lastUrl = getGasUrl()
+        setGasUrl(null)
+        setUser(null)
+        setConnection({ state: 'none', info: null, pending: null, lastUrl })
+      },
+      async acceptSwitch() {
+        if (connection.pending) setGasUrl(connection.pending.url)
+        await recheck()
+      },
+      async rejectSwitch() {
+        await recheck()
+      },
       async login(loginId, password) {
         const res = await callApi<{ token: string; user: User }>('auth.login', { loginId, password })
         setToken(res.token)
-        setUser(res.user)
-      },
-      async setupAdmin(loginId, name, password) {
-        const res = await callApi<{ token: string; user: User }>('setup.createAdmin', { loginId, name, password })
-        setToken(res.token)
-        setNeedsSetup(false)
         setUser(res.user)
       },
       async logout() {
@@ -66,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null)
       },
     }),
-    [user, loading, needsSetup, refresh],
+    [user, loading, connection, recheck],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

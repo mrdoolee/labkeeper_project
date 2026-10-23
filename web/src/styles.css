@@ -385,3 +385,26 @@ td .toolbar {
   display: grid;
   gap: 8px;
 }
+
+.school-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.link-button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--color-focus);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.auth-screen .error ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}

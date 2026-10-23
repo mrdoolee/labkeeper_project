@@ -1,6 +1,6 @@
 // Talks to the GAS web app. Requests are text/plain so the browser sends them
 // without a CORS preflight, which Apps Script cannot answer.
-import { getGasUrl } from './connection'
+import { getGasUrl, onGasUrlChange } from './connection'
 
 export class ApiError extends Error {
   code: string
@@ -31,6 +31,9 @@ export function setToken(token: string | null): void {
     // Storage blocked (private window etc.): the in-memory copy is used.
   }
 }
+
+// A different school's spreadsheet never gets this school's login token.
+onGasUrlChange(() => setToken(null))
 
 export function setOnAuthRequired(fn: () => void): void {
   onAuthRequired = fn

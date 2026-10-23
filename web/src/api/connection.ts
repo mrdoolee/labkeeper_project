@@ -1,10 +1,16 @@
 // Which school spreadsheet (GAS web app) this browser talks to. Each school
 // deploys its own GAS; the address is kept in this browser and can arrive in
 // a "우리 학교 접속 링크" as ?gas=<address>.
-import { setToken } from './client'
 
 const KEY = 'labkeeper.gasUrl'
 let memoryUrl: string | null = null
+
+// client.ts registers here to forget the login token when the school changes
+// (one-way dependency: client → connection).
+let onChange: () => void = () => {}
+export function onGasUrlChange(fn: () => void): void {
+  onChange = fn
+}
 
 const GAS_PATH = /^\/(macros|a\/macros\/[^/]+)\/s\/[^/]+\/exec$/
 
@@ -37,7 +43,7 @@ export function getGasUrl(): string | null {
 export function setGasUrl(url: string | null): boolean {
   const next = url === null ? null : url.trim()
   if (next !== null && !isValidGasUrl(next)) return false
-  if (next !== getGasUrl()) setToken(null)
+  if (next !== getGasUrl()) onChange()
   memoryUrl = next
   try {
     if (next === null) localStorage.removeItem(KEY)

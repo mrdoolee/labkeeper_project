@@ -3,19 +3,35 @@ import { useAuth } from './auth/AuthContext'
 import Layout from './components/Layout'
 import CabinetPage from './pages/CabinetPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
+import ConnectPage from './pages/ConnectPage'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RoomPage from './pages/RoomPage'
 import RoomsPage from './pages/RoomsPage'
 import SettingsPage from './pages/SettingsPage'
-import SetupPage from './pages/SetupPage'
+import { ConnectionErrorScreen, CopiedScreen, NeedsAdminScreen, OutdatedScreen, SwitchSchoolScreen } from './pages/StatusScreens'
 import UsersPage from './pages/UsersPage'
 
 export default function App() {
-  const { user, loading, needsSetup } = useAuth()
+  const { user, loading, connection } = useAuth()
 
+  switch (connection.state) {
+    case 'checking':
+      return <p className="auth-screen">불러오는 중…</p>
+    case 'none':
+      return <ConnectPage />
+    case 'error':
+      return <ConnectionErrorScreen />
+    case 'copied':
+      return <CopiedScreen />
+    case 'outdated':
+      return <OutdatedScreen />
+    case 'needsAdmin':
+      return <NeedsAdminScreen />
+    case 'switch':
+      return <SwitchSchoolScreen />
+  }
   if (loading && !user) return <p className="auth-screen">불러오는 중…</p>
-  if (needsSetup) return <SetupPage />
   if (!user) return <LoginPage />
   if (user.mustChangePassword) return <ChangePasswordPage />
 

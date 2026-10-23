@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from 'react'
+import { schoolLabel } from '../api/system'
 import { useAuth } from '../auth/AuthContext'
 import { ErrorMessage, Field, errorText } from '../components/Field'
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, connection, disconnect } = useAuth()
   const [loginId, setLoginId] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -27,6 +28,12 @@ export default function LoginPage() {
       <form className="card" onSubmit={submit}>
         <div className="brand">LabKeeper</div>
         <h1>로그인</h1>
+        <p className="school-line">
+          <span>연결된 학교: {schoolLabel(connection.info)}</span>
+          <button type="button" className="link-button" onClick={disconnect}>
+            다른 스프레드시트에 연결
+          </button>
+        </p>
         <ErrorMessage message={error} />
         <Field label="아이디" value={loginId} onChange={(e) => setLoginId(e.target.value)} required autoComplete="username" />
         <Field label="비밀번호" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
