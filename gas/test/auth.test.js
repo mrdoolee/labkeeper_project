@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from 'vitest'
+import { createAdmin } from './helpers.js'
 import { loadGas } from './loadGas.js'
 
 let gas
@@ -8,7 +9,7 @@ beforeEach(() => {
 })
 
 function setupAdmin() {
-  return gas.call('setup.createAdmin', { loginId: 'Kim', name: '김운영', password: 'first-pass-1' }).data
+  return createAdmin(gas, 'Kim', '김운영', 'first-pass-1')
 }
 
 function login(loginId, password) {
@@ -31,28 +32,23 @@ describe('hashPassword', () => {
 })
 
 describe('first admin setup', () => {
-  test('needsSetup until the first admin exists, then SETUP_DONE', () => {
-    expect(gas.call('setup.status').data).toEqual({ needsSetup: true })
-    const res = gas.call('setup.createAdmin', { loginId: 'kim', name: '김운영', password: 'first-pass-1' })
-    expect(res.ok).toBe(true)
-    expect(res.data.user).toMatchObject({ loginId: 'kim', name: '김운영', role: 'admin', mustChangePassword: false, active: true })
-    expect(res.data.token).toMatch(/^[0-9a-f]{64}$/)
-    expect(gas.call('setup.status').data).toEqual({ needsSetup: false })
-    const again = gas.call('setup.createAdmin', { loginId: 'lee', name: '이', password: 'another-pass' })
-    expect(again.error.code).toBe('SETUP_DONE')
+  test('creates the admin once, then SETUP_DONE', () => {
+    const res = setupAdmin()
+    expect(res.user).toMatchObject({ loginId: 'kim', name: '김운영', role: 'admin', mustChangePassword: false, active: true })
+    expect(res.token).toMatch(/^[0-9a-f]{64}$/)
+    expect(() => createAdmin(gas, 'lee', '이', 'another-pass')).toThrow('이미 운영 교사 계정이 있습니다')
   })
 
   test('the password is never stored or returned in plain text', () => {
-    const res = gas.call('setup.createAdmin', { loginId: 'kim', name: '김운영', password: 'first-pass-1' })
+    const res = setupAdmin()
     expect(JSON.stringify(gas.sheet('Users'))).not.toContain('first-pass-1')
     expect(JSON.stringify(gas.sheet('AuditLog'))).not.toContain('first-pass-1')
-    expect(res.data.user.salt).toBeUndefined()
-    expect(res.data.user.hash).toBeUndefined()
+    expect(res.user.salt).toBeUndefined()
+    expect(res.user.hash).toBeUndefined()
   })
 
   test('rejects a short password', () => {
-    const res = gas.call('setup.createAdmin', { loginId: 'kim', name: '김', password: 'short' })
-    expect(res.error.code).toBe('INVALID')
+    expect(() => createAdmin(gas, 'kim', '김', 'short')).toThrow('8자 이상')
   })
 })
 
@@ -167,14 +163,14 @@ describe('setup cannot be reopened', () => {
     setupAdmin()
     const sheet = gas.fakes.sheets.get('Users')
     sheet.data[0][sheet.data[0].indexOf('active')] = '사용'
-    expect(gas.call('setup.status').data).toEqual({ needsSetup: false })
-    expect(gas.call('setup.createAdmin', { loginId: 'evil', name: 'x', password: 'takeover-123' }).error.code).toBe('SETUP_DONE')
+    expect(gas.call('system.info').data.needsSetup).toBe(false)
+    expect(() => createAdmin(gas, 'evil', 'x', 'takeover-123')).toThrow('이미 운영 교사 계정이 있습니다')
   })
 
   test('a Users sheet with only deactivated people is not a fresh install', () => {
     const { user } = setupAdmin()
     gas.ctx.dbUpdate('Users', user.id, { active: false }, { id: 'x', name: 'x' })
-    expect(gas.call('setup.status').data).toEqual({ needsSetup: false })
-    expect(gas.call('setup.createAdmin', { loginId: 'evil', name: 'x', password: 'takeover-123' }).error.code).toBe('SETUP_DONE')
+    expect(gas.call('system.info').data.needsSetup).toBe(false)
+    expect(() => createAdmin(gas, 'evil', 'x', 'takeover-123')).toThrow('이미 운영 교사 계정이 있습니다')
   })
 })

@@ -12,10 +12,10 @@ test('serves doPost over HTTP with CORS for the web app', async () => {
   const res = await fetch(server.url, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action: 'setup.status' }),
+    body: JSON.stringify({ action: 'system.info' }),
   })
   expect(res.headers.get('access-control-allow-origin')).toBe('*')
-  expect(await res.json()).toEqual({ ok: true, data: { needsSetup: true } })
+  expect((await res.json()).data).toMatchObject({ name: 'LabKeeper', needsSetup: true })
 })
 
 test('serves doGet', async () => {
@@ -25,10 +25,9 @@ test('serves doGet', async () => {
 
 test('uses the real clock so records get real timestamps', async () => {
   server = await startDevServer(0)
-  const body = JSON.stringify({ action: 'setup.createAdmin', payload: { loginId: 'kim', name: '김운영', password: 'first-pass-1' } })
-  const created = await (await fetch(server.url, { method: 'POST', body })).json()
+  const { token } = server.gas.ctx.setupCreateAdmin({ loginId: 'kim', name: '김운영', password: 'first-pass-1' })
   const history = await (
-    await fetch(server.url, { method: 'POST', body: JSON.stringify({ action: 'audit.list', token: created.data.token, payload: {} }) })
+    await fetch(server.url, { method: 'POST', body: JSON.stringify({ action: 'audit.list', token, payload: {} }) })
   ).json()
   expect(Math.abs(Date.parse(history.data[0].at) - Date.now())).toBeLessThan(60_000)
 })

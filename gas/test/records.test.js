@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, test } from 'vitest'
+import { createAdmin } from './helpers.js'
 import { loadGas } from './loadGas.js'
 
 let gas, adminToken, teacherToken
 
 beforeEach(() => {
   gas = loadGas()
-  adminToken = gas.call('setup.createAdmin', { loginId: 'kim', name: '김운영', password: 'first-pass-1' }).data.token
+  adminToken = createAdmin(gas, 'kim', '김운영', 'first-pass-1').token
   const created = gas.call('users.create', { loginId: 'lee', name: '이교사', role: 'teacher' }, adminToken).data
   teacherToken = gas.call('auth.login', { loginId: 'lee', password: created.tempPassword }).data.token
 })

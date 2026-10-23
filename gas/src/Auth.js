@@ -9,8 +9,6 @@ var SYSTEM_USER = { id: 'system', name: '첫 설정' };
 
 function authActions() {
   return {
-    'setup.status': { auth: 'none', write: false, handler: setupStatus },
-    'setup.createAdmin': { auth: 'none', write: true, handler: setupCreateAdmin },
     'auth.login': { auth: 'none', write: true, handler: authLogin },
     'auth.me': { auth: 'user', write: false, handler: function (payload, user) { return user; } },
     'auth.logout': { auth: 'user', write: false, handler: authLogout },
@@ -105,11 +103,8 @@ function hasAnyUser() {
   return dbList('Users', { includeDeleted: true }).length > 0;
 }
 
-function setupStatus() {
-  return { needsSetup: !hasAnyUser() };
-}
-
 function setupCreateAdmin(payload) {
+  sheetOwnerState(); // the sheet that gets the first account is the owner
   if (hasAnyUser()) throw apiError('SETUP_DONE', '이미 운영 교사 계정이 있습니다.');
   var loginId = normalizeLoginId(payload.loginId);
   var name = String(payload.name || '').trim();

@@ -109,8 +109,12 @@ export function createFakes(options = {}) {
   const sheets = new Map()
   const cache = new Map()
   const lockCalls = { wait: 0, release: 0 }
+  const properties = new Map()
+  let spreadsheetId = options.spreadsheetId ?? 'sheet-A'
 
   const spreadsheet = {
+    getId: () => spreadsheetId,
+    getUrl: () => `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
     getSheetByName: (name) => sheets.get(name) || null,
     insertSheet: (name) => {
       const s = new FakeSheet(name)
@@ -133,6 +137,19 @@ export function createFakes(options = {}) {
   const globals = {
     Date: FakeDate,
     SpreadsheetApp: { getActive: () => spreadsheet, getActiveSpreadsheet: () => spreadsheet },
+    PropertiesService: {
+      getScriptProperties: () => ({
+        getProperty: (key) => (properties.has(key) ? properties.get(key) : null),
+        setProperty(key, value) {
+          properties.set(key, String(value))
+          return this
+        },
+        deleteProperty(key) {
+          properties.delete(key)
+          return this
+        },
+      }),
+    },
     Utilities: {
       DigestAlgorithm: { SHA_256: 'sha256' },
       Charset: { UTF_8: 'utf8' },
@@ -193,6 +210,11 @@ export function createFakes(options = {}) {
     globals,
     sheets,
     lockCalls,
+    properties,
+    // Simulates "File → Make a copy": same script and data, new spreadsheet id.
+    setSpreadsheetId(id) {
+      spreadsheetId = id
+    },
     advanceTime(seconds) {
       offset += seconds * 1000
     },

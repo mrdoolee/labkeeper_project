@@ -7,7 +7,7 @@
 var ACTIONS = {};
 
 function registerActions() {
-  var groups = [authActions(), usersActions(), settingsActions(), recordsActions()];
+  var groups = [systemActions(), authActions(), usersActions(), settingsActions(), recordsActions()];
   groups.forEach(function (group) {
     Object.keys(group).forEach(function (name) {
       if (!ACTIONS[name]) ACTIONS[name] = group[name];
@@ -36,6 +36,9 @@ function doPost(e) {
 
   var lock = null;
   try {
+    if (req.action !== 'system.info' && sheetOwnerState() === 'copied') {
+      throw apiError('SHEET_COPIED', '운영 중인 시트의 사본입니다. 시트 메뉴 LabKeeper → 사본을 새 학교 시트로 시작을 먼저 실행하세요.');
+    }
     var user = null;
     if (def.auth === 'user') user = requireUser(req.token);
     else if (def.auth === 'admin') user = requireAdmin(req.token);
