@@ -48,3 +48,14 @@ test('can create the first admin for local testing', async () => {
   ).json()
   expect(login.ok).toBe(true)
 })
+
+test('can enter school info for local testing', async () => {
+  server = await startDevServer(0)
+  const res = await fetch(server.url + '__dev/schoolInfo', {
+    method: 'POST',
+    body: JSON.stringify({ schoolName: '청주중학교', managerName: '김운영' }),
+  })
+  expect(await res.json()).toEqual({ ok: true })
+  const info = await (await fetch(server.url, { method: 'POST', body: JSON.stringify({ action: 'system.info' }) })).json()
+  expect(info.data).toMatchObject({ schoolName: '청주중학교', managerName: '김운영' })
+})

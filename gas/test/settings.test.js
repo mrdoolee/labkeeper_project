@@ -21,6 +21,7 @@ describe('settings', () => {
   test('settings.get returns defaults before anything is saved', () => {
     expect(gas.call('settings.get', {}, teacherToken).data).toEqual({
       schoolName: '',
+      managerName: '',
       schoolLevel: 'middle',
       region: 'chungbuk',
       signerScienceHead: '',
@@ -32,19 +33,19 @@ describe('settings', () => {
   })
 
   test('a teacher can update settings and gets the full settings back', () => {
-    const res = gas.call('settings.update', { schoolName: '청주과학고', region: 'seoul', labOver100m2: true }, teacherToken)
+    const res = gas.call('settings.update', { signerPrincipal: '박교장', region: 'seoul', labOver100m2: true }, teacherToken)
     expect(res.ok).toBe(true)
-    expect(res.data).toMatchObject({ schoolName: '청주과학고', region: 'seoul', labOver100m2: true, schoolLevel: 'middle' })
-    expect(gas.call('settings.get', {}, adminToken).data).toMatchObject({ schoolName: '청주과학고', region: 'seoul', labOver100m2: true })
+    expect(res.data).toMatchObject({ signerPrincipal: '박교장', region: 'seoul', labOver100m2: true, schoolLevel: 'middle' })
+    expect(gas.call('settings.get', {}, adminToken).data).toMatchObject({ signerPrincipal: '박교장', region: 'seoul', labOver100m2: true })
   })
 
   test('only changed keys are audited, keyed by setting name, with who changed them', () => {
-    gas.call('settings.update', { schoolName: '청주중', region: 'chungbuk' }, teacherToken)
+    gas.call('settings.update', { signerPrincipal: '박교장', region: 'chungbuk' }, teacherToken)
     const logs = auditRows().filter((a) => a.table === 'Settings')
     expect(logs).toHaveLength(1)
-    expect(logs[0]).toMatchObject({ recordId: 'schoolName', userId: teacherId, userName: '이교사', action: 'update' })
-    expect(JSON.parse(logs[0].before)).toEqual({ schoolName: '' })
-    expect(JSON.parse(logs[0].after)).toEqual({ schoolName: '청주중' })
+    expect(logs[0]).toMatchObject({ recordId: 'signerPrincipal', userId: teacherId, userName: '이교사', action: 'update' })
+    expect(JSON.parse(logs[0].before)).toEqual({ signerPrincipal: '' })
+    expect(JSON.parse(logs[0].after)).toEqual({ signerPrincipal: '박교장' })
   })
 
   test.each([

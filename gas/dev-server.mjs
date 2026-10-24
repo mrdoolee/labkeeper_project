@@ -21,11 +21,12 @@ export function startDevServer(port = 8787) {
     let body = ''
     req.on('data', (chunk) => (body += chunk))
     req.on('end', () => {
-      // Stand-in for the sheet menu "운영 교사 계정 만들기" (local testing only).
-      if (req.method === 'POST' && req.url === '/__dev/createAdmin') {
+      // Stand-ins for sheet-menu items (local testing only).
+      const menu = { '/__dev/createAdmin': 'sheetCreateAdmin', '/__dev/schoolInfo': 'sheetSetSchoolInfo' }[req.url]
+      if (req.method === 'POST' && menu) {
         let reply
         try {
-          gas.ctx.sheetCreateAdmin(JSON.parse(body))
+          gas.ctx[menu](JSON.parse(body))
           reply = { ok: true }
         } catch (err) {
           reply = { ok: false, error: { code: err.code || 'INVALID', message: err.message } }

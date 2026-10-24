@@ -2,6 +2,7 @@
 
 var SETTINGS_DEFAULTS = {
   schoolName: '',
+  managerName: '',
   schoolLevel: 'middle',
   region: 'chungbuk',
   signerScienceHead: '',
@@ -58,7 +59,20 @@ function checkSetting(key, value) {
   }
 }
 
+// Entered from the sheet menu (LabKeeper → 학교 정보 입력); the web only shows them.
+var SHEET_ONLY_SETTINGS = ['schoolName', 'managerName'];
+
 function settingsUpdate(payload, user) {
+  Object.keys(payload).forEach(function (key) {
+    if (SHEET_ONLY_SETTINGS.indexOf(key) >= 0) {
+      throw apiError('INVALID', '학교 이름과 관리 교사는 스프레드시트의 시트 메뉴 LabKeeper → 학교 정보 입력에서 바꿀 수 있습니다.');
+    }
+  });
+  return writeSettings(payload, user);
+}
+
+// Checks and stores settings; each changed key gets its own history line.
+function writeSettings(payload, user) {
   Object.keys(payload).forEach(function (key) {
     checkSetting(key, payload[key]);
   });

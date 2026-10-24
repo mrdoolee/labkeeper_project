@@ -9,12 +9,12 @@ beforeEach(() => {
 })
 
 test('reports version, setup need and school name on an empty sheet', () => {
-  expect(gas.call('system.info').data).toEqual({ name: 'LabKeeper', apiVersion: 2, needsSetup: true, copied: false, schoolName: '' })
+  expect(gas.call('system.info').data).toEqual({ name: 'LabKeeper', apiVersion: 3, needsSetup: true, copied: false, closed: false, closedNote: '', schoolName: '', managerName: '' })
 })
 
 test('after an admin and a school name exist', () => {
-  const { token } = createAdmin(gas, 'kim', '김운영', 'first-pass-1')
-  gas.call('settings.update', { schoolName: '청주중학교' }, token)
+  createAdmin(gas, 'kim', '김운영', 'first-pass-1')
+  gas.ctx.sheetSetSchoolInfo({ schoolName: '청주중학교', managerName: '' })
   expect(gas.call('system.info').data).toMatchObject({ needsSetup: false, schoolName: '청주중학교' })
 })
 

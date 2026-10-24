@@ -6,11 +6,13 @@ import Layout from './Layout'
 
 const logout = vi.fn()
 let role: 'admin' | 'teacher' = 'admin'
+let info = { schoolName: '청주중학교', managerName: '김운영' }
 
 vi.mock('../auth/AuthContext', () => ({
   useAuth: () => ({
     user: { id: 'u1', loginId: 'kim', name: '김운영', role, mustChangePassword: false, active: true },
     logout,
+    connection: { state: 'ready', info, pending: null, lastUrl: null },
   }),
 }))
 
@@ -25,6 +27,7 @@ function renderLayout() {
 beforeEach(() => {
   localStorage.clear()
   role = 'admin'
+  info = { schoolName: '청주중학교', managerName: '김운영' }
   logout.mockReset()
 })
 
@@ -77,4 +80,22 @@ test('the logout icon button logs out', async () => {
   renderLayout()
   await userEvent.click(screen.getByRole('button', { name: '로그아웃' }))
   expect(logout).toHaveBeenCalled()
+})
+
+test('school name and manager from the sheet stay visible, also when the menu is collapsed', async () => {
+  renderLayout()
+  const menu = screen.getByRole('navigation', { name: '주 메뉴' })
+  expect(within(menu).getByText('청주중학교')).toBeVisible()
+  expect(within(menu).getByText('관리 교사 김운영')).toBeVisible()
+  await userEvent.click(screen.getByRole('button', { name: '메뉴 접기' }))
+  const top = screen.getByRole('banner')
+  expect(within(top).getByText('청주중학교')).toBeVisible()
+  expect(within(top).getByText('관리 교사 김운영')).toBeVisible()
+})
+
+test('missing school info points to the sheet menu', () => {
+  info = { schoolName: '', managerName: '' }
+  renderLayout()
+  expect(screen.getByText('학교 정보 미입력')).toBeInTheDocument()
+  expect(screen.getByText('시트 메뉴 → 학교 정보 입력')).toBeInTheDocument()
 })

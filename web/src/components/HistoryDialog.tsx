@@ -9,7 +9,7 @@ export interface AuditEntry {
   userName: string
   table: string
   recordId: string
-  action: 'create' | 'update' | 'delete' | 'restore' | 'login' | 'passwordChange' | 'passwordReset'
+  action: string
   before: Record<string, unknown> | null
   after: Record<string, unknown> | null
 }
@@ -22,6 +22,10 @@ const ACTION_LABELS: Record<string, string> = {
   login: '로그인',
   passwordChange: '비밀번호 변경',
   passwordReset: '비밀번호 초기화',
+  close: '운영 종료',
+  reopen: '운영 종료 풀기',
+  continueCopy: '사본 계속 쓰기',
+  startFresh: '새 학교 시트로 시작',
 }
 
 // Korean names for columns and settings shown in the history.
@@ -42,6 +46,7 @@ const FIELD_LABELS: Record<string, string> = {
   active: '사용 여부',
   mustChangePassword: '비밀번호 변경 필요',
   schoolName: '학교 이름',
+  managerName: '관리 교사',
   schoolLevel: '학교급',
   region: '장부 양식 지역',
   signerScienceHead: '과학부장',

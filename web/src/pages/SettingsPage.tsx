@@ -5,6 +5,7 @@ import { HistoryButton } from '../components/HistoryDialog'
 
 export interface Settings {
   schoolName: string
+  managerName: string
   schoolLevel: 'middle' | 'high'
   region: 'chungbuk' | 'seoul' | 'gyeonggi'
   signerScienceHead: string
@@ -83,7 +84,13 @@ export default function SettingsPage() {
         <ErrorMessage message={error} />
         <Notice message={notice} />
         <h2>학교</h2>
-        <Field label="학교 이름" value={form.schoolName} onChange={(e) => set('schoolName', e.target.value)} />
+        <dl className="readonly-list">
+          <dt>학교 이름</dt>
+          <dd>{form.schoolName || '(미입력)'}</dd>
+          <dt>관리 교사</dt>
+          <dd>{form.managerName || '(미입력)'}</dd>
+        </dl>
+        <p className="hint">학교 이름과 관리 교사는 스프레드시트 메뉴 LabKeeper → 학교 정보 입력에서 바꿀 수 있어요.</p>
         <SelectField label="학교급" options={LEVELS} value={form.schoolLevel} onChange={(e) => set('schoolLevel', e.target.value as Settings['schoolLevel'])} />
         <SelectField label="장부 양식 지역" options={REGIONS} value={form.region} onChange={(e) => set('region', e.target.value as Settings['region'])} />
         <h2>장부 서명자</h2>

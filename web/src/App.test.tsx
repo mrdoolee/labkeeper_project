@@ -17,7 +17,7 @@ type Handler = (payload: Record<string, unknown>, url?: string | null) => unknow
 
 const A = 'https://script.google.com/macros/s/AKfyA/exec'
 const B = 'https://script.google.com/macros/s/AKfyB/exec'
-const READY = { name: 'LabKeeper', apiVersion: 2, needsSetup: false, copied: false, schoolName: '청주중학교' }
+const READY = { name: 'LabKeeper', apiVersion: 3, needsSetup: false, copied: false, closed: false, closedNote: '', schoolName: '청주중학교', managerName: '김운영' }
 
 // system.info answers READY unless a test says otherwise.
 function serve(handlers: Record<string, Handler | unknown>) {
@@ -124,7 +124,7 @@ describe('connecting the school spreadsheet', () => {
   })
 
   test('an old GAS version asks for a redeploy', async () => {
-    serve({ 'system.info': { ...READY, apiVersion: 1 } })
+    serve({ 'system.info': { ...READY, apiVersion: 2 } })
     renderApp()
     expect(await screen.findByRole('heading', { name: '학교 시트의 프로그램이 옛 버전입니다' })).toBeInTheDocument()
   })
@@ -171,6 +171,15 @@ describe('connecting the school spreadsheet', () => {
     serve({ 'system.info': { ...READY, ...info } })
     renderApp()
     await screen.findByRole('heading', { name: heading })
+    await userEvent.click(screen.getByRole('button', { name: '주소 바꾸기' }))
+    expect(await screen.findByRole('heading', { name: '스프레드시트 연결' })).toBeInTheDocument()
+  })
+
+  test('a closed sheet shows the closing note and a way to another address', async () => {
+    serve({ 'system.info': { ...READY, closed: true, closedNote: '새 접속 링크는 운영 교사에게 받으세요.' } })
+    renderApp()
+    expect(await screen.findByRole('heading', { name: '이 학교 시트는 운영이 종료되었습니다' })).toBeInTheDocument()
+    expect(screen.getByText('새 접속 링크는 운영 교사에게 받으세요.')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: '주소 바꾸기' }))
     expect(await screen.findByRole('heading', { name: '스프레드시트 연결' })).toBeInTheDocument()
   })

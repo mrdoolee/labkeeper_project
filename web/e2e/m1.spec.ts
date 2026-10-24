@@ -22,13 +22,20 @@ test('M1: accounts, rooms, cabinets and history end to end', async ({ page, requ
   await page.screenshot({ path: `${SHOTS}/01b-needs-admin.png` })
   const made = await request.post(`${GAS}__dev/createAdmin`, { data: { loginId: 'kim', name: '김운영', password: 'first-pass-1' } })
   expect(await made.json()).toEqual({ ok: true })
+  // School name and operating teacher are entered from the sheet menu too
+  const info = await request.post(`${GAS}__dev/schoolInfo`, { data: { schoolName: '청주중학교', managerName: '김운영' } })
+  expect(await info.json()).toEqual({ ok: true })
   await page.getByRole('button', { name: '다시 확인' }).click()
+  await expect(page.getByText('연결된 학교: 청주중학교')).toBeVisible()
 
   await expect(page.getByRole('heading', { name: '로그인' })).toBeVisible()
   await page.getByLabel('아이디', { exact: true }).fill('kim')
   await page.getByLabel('비밀번호', { exact: true }).fill('first-pass-1')
   await page.getByRole('button', { name: '로그인' }).click()
   await expect(page.getByRole('heading', { name: '안녕하세요, 김운영 선생님' })).toBeVisible()
+  const menu = page.getByRole('navigation', { name: '주 메뉴' })
+  await expect(menu.getByText('청주중학교')).toBeVisible()
+  await expect(menu.getByText('관리 교사 김운영')).toBeVisible()
 
   // Admin creates a teacher account and reads the temporary password
   await page.getByRole('link', { name: '계정 관리' }).click()

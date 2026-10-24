@@ -23,6 +23,19 @@ function NavItem({ to, end, icon: Icon, label, collapsed }: { to: string; end?: 
   )
 }
 
+/** School name and operating teacher, entered in the sheet (LabKeeper → 학교 정보 입력). */
+function SchoolInfo() {
+  const { connection } = useAuth()
+  const school = connection.info?.schoolName
+  const manager = connection.info?.managerName
+  return (
+    <div className="school-info" aria-label="학교 정보">
+      <span className="school-name">{school || '학교 정보 미입력'}</span>
+      <span className="school-manager">{manager ? `관리 교사 ${manager}` : school ? '관리 교사 미입력' : '시트 메뉴 → 학교 정보 입력'}</span>
+    </div>
+  )
+}
+
 export default function Layout() {
   const { user, logout } = useAuth()
   const [collapsed, setCollapsed] = useState(readCollapsed)
@@ -55,6 +68,7 @@ export default function Layout() {
           <NavItem to="/settings" icon={SlidersHorizontal} label="설정" collapsed={collapsed} />
           {user?.role === 'admin' && <NavItem to="/users" icon={Users} label="계정 관리" collapsed={collapsed} />}
         </div>
+        {!collapsed && <SchoolInfo />}
         <div className="user-box">
           <span className="avatar" aria-hidden="true">
             {user?.name.slice(0, 1)}
@@ -73,6 +87,12 @@ export default function Layout() {
       <div className="main">
         <header className="topbar">
           <CabinetSearch />
+          {collapsed && (
+            <>
+              <span className="spacer" />
+              <SchoolInfo />
+            </>
+          )}
         </header>
         <main className="content">
           <Outlet />

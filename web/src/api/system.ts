@@ -1,7 +1,7 @@
 import { callApi } from './client'
 
 /** Must match API_VERSION in gas/src/System.js. */
-export const REQUIRED_API_VERSION = 2
+export const REQUIRED_API_VERSION = 3
 
 export const GUIDE_URL = 'https://github.com/mrdoolee/labkeeper_project/blob/main/docs/setup-guide.md'
 
@@ -10,7 +10,11 @@ export interface SystemInfo {
   apiVersion: number
   needsSetup: boolean
   copied: boolean
+  /** Locked from the sheet menu (운영 종료); closedNote is shown to teachers. */
+  closed: boolean
+  closedNote: string
   schoolName: string
+  managerName: string
 }
 
 /** Asks a school's GAS who it is (the saved one, or `url` when testing an address). */

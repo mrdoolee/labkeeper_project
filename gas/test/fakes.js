@@ -115,6 +115,7 @@ export function createFakes(options = {}) {
   const cache = new Map()
   const lockCalls = { wait: 0, release: 0 }
   const properties = new Map()
+  let activeUserEmail = ''
   let spreadsheetId = options.spreadsheetId ?? 'sheet-A'
 
   const spreadsheet = {
@@ -142,6 +143,7 @@ export function createFakes(options = {}) {
   const globals = {
     Date: FakeDate,
     SpreadsheetApp: { getActive: () => spreadsheet, getActiveSpreadsheet: () => spreadsheet },
+    Session: { getActiveUser: () => ({ getEmail: () => activeUserEmail }) },
     PropertiesService: {
       getScriptProperties: () => ({
         getProperty: (key) => (properties.has(key) ? properties.get(key) : null),
@@ -216,6 +218,10 @@ export function createFakes(options = {}) {
     sheets,
     lockCalls,
     properties,
+    // The Google account running a sheet-menu item ('' when Google hides it).
+    setActiveUserEmail(email) {
+      activeUserEmail = email
+    },
     // Simulates "File → Make a copy": same script and data, new spreadsheet id.
     setSpreadsheetId(id) {
       spreadsheetId = id

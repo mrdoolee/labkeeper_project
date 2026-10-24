@@ -13,6 +13,71 @@ function withScriptLock(fn) {
   }
 }
 
+// Who ran a sheet-menu item: the menu has no LabKeeper login, so the history
+// names the Google account when Apps Script reveals it.
+function sheetActor() {
+  var email = '';
+  try {
+    email = String(Session.getActiveUser().getEmail() || '');
+  } catch (err) {
+    email = '';
+  }
+  return { id: SHEET_OWNER.id, name: SHEET_OWNER.name + (email ? ' (' + email + ')' : '') };
+}
+
+// School name and operating teacher, shown at the bottom of the web menu.
+function sheetSetSchoolInfo(form) {
+  return withScriptLock(function () {
+    writeSettings({ schoolName: String(form.schoolName || ''), managerName: String(form.managerName || '') }, sheetActor());
+    var s = settingsGet();
+    return { schoolName: s.schoolName, managerName: s.managerName };
+  });
+}
+
+// 운영 종료: the web app stops working for this sheet (data stays), e.g.
+// after the school moved to a copy. Reversible with sheetReopenSheet.
+function sheetCloseSheet(note) {
+  return withScriptLock(function () {
+    if (sheetClosedInfo()) throw apiError('INVALID', '이미 운영이 종료된 시트입니다.');
+    var text = String(note || '').trim();
+    if (text.length > 200) throw apiError('INVALID', '안내 문구는 200자 이내로 적어 주세요.');
+    PropertiesService.getScriptProperties().setProperty(CLOSED_PROP, JSON.stringify({ at: nowIso(), note: text }));
+    dbAudit(sheetActor(), 'System', String(SpreadsheetApp.getActive().getId()), 'close', null, { note: text });
+    return true;
+  });
+}
+
+function sheetReopenSheet() {
+  return withScriptLock(function () {
+    if (!sheetClosedInfo()) throw apiError('INVALID', '운영 중인 시트입니다. 풀 것이 없습니다.');
+    PropertiesService.getScriptProperties().deleteProperty(CLOSED_PROP);
+    dbAudit(sheetActor(), 'System', String(SpreadsheetApp.getActive().getId()), 'reopen', null, null);
+    return true;
+  });
+}
+
+// What a copy holds, shown before "이 사본을 계속 쓰기" so the person can check it.
+function sheetCopySummary() {
+  return { schoolName: settingsGet().schoolName, users: dbList('Users').length };
+}
+
+// 이 사본을 계속 쓰기: a detected copy becomes the school's sheet with all its
+// data (used when the original cannot change owner, e.g. a school account).
+function sheetContinueCopy() {
+  return withScriptLock(function () {
+    if (sheetOwnerState() !== 'copied') {
+      throw apiError('INVALID', '이 시트는 사본이 아닙니다. 운영 중인 시트의 사본에서만 쓸 수 있습니다.');
+    }
+    var props = PropertiesService.getScriptProperties();
+    var previous = props.getProperty(OWNER_PROP);
+    var id = String(SpreadsheetApp.getActive().getId());
+    props.setProperty(OWNER_PROP, id);
+    props.deleteProperty(CLOSED_PROP); // the original may have been closed before it was copied
+    dbAudit(sheetActor(), 'System', id, 'continueCopy', { ownerSpreadsheetId: previous }, { ownerSpreadsheetId: id });
+    return true;
+  });
+}
+
 function sheetCreateAdmin(form) {
   return withScriptLock(function () {
     sheetOwnerState(); // the sheet that gets the first account is the owner
@@ -43,8 +108,9 @@ function sheetResetAdminPassword(loginId) {
     if (!row) throw apiError('NOT_FOUND', '운영 교사 계정을 찾을 수 없습니다: ' + id);
     var password = tempPassword();
     var salt = newSalt();
-    dbUpdate('Users', row.id, { salt: salt, hash: hashPassword(password, salt), mustChangePassword: true }, SHEET_OWNER, { skipAudit: true });
-    dbAudit(SHEET_OWNER, 'Users', row.id, 'passwordReset', null, null);
+    var actor = sheetActor();
+    dbUpdate('Users', row.id, { salt: salt, hash: hashPassword(password, salt), mustChangePassword: true }, actor, { skipAudit: true });
+    dbAudit(actor, 'Users', row.id, 'passwordReset', null, null);
     CacheService.getScriptCache().remove('fail:' + row.loginId);
     return { tempPassword: password };
   });
@@ -65,8 +131,10 @@ function sheetStartFresh() {
         if (sheet && sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
       });
     var id = String(ss.getId());
-    PropertiesService.getScriptProperties().setProperty(OWNER_PROP, id);
-    dbAudit(SHEET_OWNER, 'System', id, 'startFresh', null, null);
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty(OWNER_PROP, id);
+    props.deleteProperty(CLOSED_PROP);
+    dbAudit(sheetActor(), 'System', id, 'startFresh', null, null);
     return true;
   });
 }
@@ -96,11 +164,16 @@ function checkSheetStructure() {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('LabKeeper')
+    .addItem('학교 정보 입력', 'menuSchoolInfo')
     .addItem('운영 교사 계정 만들기', 'menuCreateAdmin')
     .addItem('운영 교사 비밀번호 초기화', 'menuResetAdminPassword')
     .addSeparator()
     .addItem('시트 구조 점검', 'menuCheckStructure')
     .addItem('사본을 새 학교 시트로 시작', 'menuStartFresh')
+    .addItem('이 사본을 계속 쓰기', 'menuContinueCopy')
+    .addSeparator()
+    .addItem('운영 종료 (이 시트 잠그기)', 'menuCloseSheet')
+    .addItem('운영 종료 풀기', 'menuReopenSheet')
     .addSeparator()
     .addItem('사용 가이드', 'menuGuide')
     .addToUi();
@@ -126,6 +199,92 @@ var CREATE_ADMIN_HTML =
   '.withFailureHandler(function(err){m.style.color="#b91c1c";m.textContent=err.message;})' +
   '.sheetCreateAdmin({loginId:f.loginId.value,name:f.name.value,password:f.password.value});};' +
   '</script>';
+
+// Values go into the page as JSON; '<' is escaped so a value cannot end the script tag.
+function schoolInfoHtml(current) {
+  var init = JSON.stringify(current).replace(/</g, '\\u003c');
+  return (
+    '<style>body{font:14px sans-serif;margin:0}label{display:block;margin-top:10px;font-weight:600}' +
+    'input{width:100%;box-sizing:border-box;padding:6px;margin-top:4px}button{margin-top:14px;padding:8px 14px}' +
+    '#msg{margin-top:10px}small{color:#64748b}</style>' +
+    '<form id="f">' +
+    '<label>학교 이름<input name="schoolName" maxlength="100"></label>' +
+    '<label>관리 교사<input name="managerName" maxlength="100"></label><small>웹 화면 왼쪽 메뉴 아래에 보입니다.</small>' +
+    '<button type="submit">저장</button><div id="msg"></div></form>' +
+    '<script>var init=' + init + ',f=document.getElementById("f"),m=document.getElementById("msg");' +
+    'f.schoolName.value=init.schoolName;f.managerName.value=init.managerName;' +
+    'f.onsubmit=function(e){e.preventDefault();m.style.color="#334155";m.textContent="저장하는 중…";' +
+    'google.script.run.withSuccessHandler(function(){m.style.color="#15803d";m.textContent="저장했습니다. 변경 기록은 AuditLog 탭에 남습니다.";})' +
+    '.withFailureHandler(function(err){m.style.color="#b91c1c";m.textContent=err.message;})' +
+    '.sheetSetSchoolInfo({schoolName:f.schoolName.value,managerName:f.managerName.value});};</script>'
+  );
+}
+
+function menuSchoolInfo() {
+  var s = settingsGet();
+  SpreadsheetApp.getUi().showModalDialog(
+    HtmlService.createHtmlOutput(schoolInfoHtml({ schoolName: s.schoolName, managerName: s.managerName })).setWidth(360).setHeight(300),
+    '학교 정보 입력',
+  );
+}
+
+function menuCloseSheet() {
+  var ui = SpreadsheetApp.getUi();
+  if (sheetClosedInfo()) {
+    ui.alert('이미 운영이 종료된 시트입니다. 다시 쓰려면 "운영 종료 풀기"를 누르세요.');
+    return;
+  }
+  var res = ui.prompt(
+    '운영 종료 (이 시트 잠그기)',
+    '이 시트로 연결된 웹 화면을 더 이상 쓸 수 없게 합니다. 기록은 지우지 않으며, "운영 종료 풀기"로 되돌릴 수 있습니다.\n' +
+      '선생님들이 웹 화면에서 볼 안내 문구를 적어 주세요(예: 새 접속 링크는 운영 교사에게 받으세요).',
+    ui.ButtonSet.OK_CANCEL,
+  );
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  try {
+    sheetCloseSheet(res.getResponseText());
+    ui.alert('운영을 종료했습니다. 이 시트에 연결된 웹 화면은 안내 문구만 보여 줍니다.');
+  } catch (err) {
+    ui.alert(err.message);
+  }
+}
+
+function menuReopenSheet() {
+  var ui = SpreadsheetApp.getUi();
+  if (!sheetClosedInfo()) {
+    ui.alert('운영 중인 시트입니다. 풀 것이 없습니다.');
+    return;
+  }
+  if (ui.alert('운영 종료 풀기', '이 시트로 웹 화면을 다시 쓸 수 있게 합니다. 계속할까요?', ui.ButtonSet.YES_NO) !== ui.Button.YES) return;
+  sheetReopenSheet();
+  ui.alert('다시 운영 중입니다.');
+}
+
+function menuContinueCopy() {
+  var ui = SpreadsheetApp.getUi();
+  if (sheetOwnerState() !== 'copied') {
+    ui.alert('이 시트는 운영 중인 시트의 사본이 아니라서 할 일이 없습니다.');
+    return;
+  }
+  var summary = sheetCopySummary();
+  var answer = ui.alert(
+    '이 사본을 계속 쓰기',
+    '이 사본에 든 기록을 그대로 이어서 쓰고, 이 사본을 학교의 시트로 삼습니다.\n\n' +
+      '학교 이름: ' + (summary.schoolName || '(미입력)') + '\n계정 수: ' + summary.users + '\n\n' +
+      '꼭 함께 할 일:\n' +
+      '1. 원래 시트에서 LabKeeper → 운영 종료를 실행해 원래 시트를 잠급니다(기록이 둘로 갈라지지 않게).\n' +
+      '2. 이 사본에서 웹 앱을 새로 배포하고, 새 접속 링크를 모든 선생님께 다시 보냅니다.\n' +
+      '3. 선생님들은 다시 로그인해야 합니다(아이디·비밀번호는 그대로).\n\n계속할까요?',
+    ui.ButtonSet.YES_NO,
+  );
+  if (answer !== ui.Button.YES) return;
+  try {
+    sheetContinueCopy();
+    ui.alert('이 사본을 학교 시트로 삼았습니다. 웹 앱을 새로 배포하고 새 접속 링크를 보내 주세요.');
+  } catch (err) {
+    ui.alert(err.message);
+  }
+}
 
 function menuCreateAdmin() {
   var ui = SpreadsheetApp.getUi();

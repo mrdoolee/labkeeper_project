@@ -50,6 +50,24 @@ export function CopiedScreen() {
   )
 }
 
+export function ClosedScreen() {
+  const { connection, recheck, disconnect } = useAuth()
+  return (
+    <Screen title="이 학교 시트는 운영이 종료되었습니다">
+      {connection.info?.closedNote && <p className="closed-note">{connection.info.closedNote}</p>}
+      <p>운영 교사에게 새 접속 링크를 받아 주세요.</p>
+      <div className="toolbar">
+        <button className="primary" type="button" onClick={() => recheck()}>
+          다시 확인
+        </button>
+        <button type="button" onClick={disconnect}>
+          주소 바꾸기
+        </button>
+      </div>
+    </Screen>
+  )
+}
+
 export function OutdatedScreen() {
   const { recheck, disconnect } = useAuth()
   return (

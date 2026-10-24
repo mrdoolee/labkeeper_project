@@ -9,7 +9,7 @@ import LoginPage from './pages/LoginPage'
 import RoomPage from './pages/RoomPage'
 import RoomsPage from './pages/RoomsPage'
 import SettingsPage from './pages/SettingsPage'
-import { ConnectionErrorScreen, CopiedScreen, NeedsAdminScreen, OutdatedScreen, SwitchSchoolScreen } from './pages/StatusScreens'
+import { ClosedScreen, ConnectionErrorScreen, CopiedScreen, NeedsAdminScreen, OutdatedScreen, SwitchSchoolScreen } from './pages/StatusScreens'
 import UsersPage from './pages/UsersPage'
 
 export default function App() {
@@ -24,6 +24,8 @@ export default function App() {
       return <ConnectionErrorScreen />
     case 'copied':
       return <CopiedScreen />
+    case 'closed':
+      return <ClosedScreen />
     case 'outdated':
       return <OutdatedScreen />
     case 'needsAdmin':

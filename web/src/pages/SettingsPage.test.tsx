@@ -14,6 +14,7 @@ const api = vi.mocked(callApi)
 
 const SETTINGS = {
   schoolName: '청주중학교',
+  managerName: '김운영',
   schoolLevel: 'middle',
   region: 'chungbuk',
   signerScienceHead: '',
@@ -49,17 +50,21 @@ beforeEach(() => {
 })
 
 describe('SettingsPage', () => {
+  test('school name and manager are shown read-only, entered from the sheet menu', async () => {
+    render(<SettingsPage />)
+    expect(await screen.findByText('청주중학교')).toBeInTheDocument()
+    expect(screen.getByText('김운영')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox', { name: '학교 이름' })).not.toBeInTheDocument()
+    expect(screen.getByText(/LabKeeper → 학교 정보 입력/)).toBeInTheDocument()
+  })
+
   test('shows saved settings and sends only what changed', async () => {
     render(<SettingsPage />)
-    const school = await screen.findByLabelText('학교 이름')
-    expect(school).toHaveValue('청주중학교')
-    expect(screen.getByLabelText('장부 양식 지역')).toHaveValue('chungbuk')
-    await userEvent.clear(school)
-    await userEvent.type(school, '청주고등학교')
+    expect(await screen.findByLabelText('장부 양식 지역')).toHaveValue('chungbuk')
     await userEvent.selectOptions(screen.getByLabelText('학교급'), 'high')
     await userEvent.type(screen.getByLabelText('과학부장'), '박부장')
     await userEvent.click(screen.getByRole('button', { name: '저장' }))
-    expect(api).toHaveBeenCalledWith('settings.update', { schoolName: '청주고등학교', schoolLevel: 'high', signerScienceHead: '박부장' })
+    expect(api).toHaveBeenCalledWith('settings.update', { schoolLevel: 'high', signerScienceHead: '박부장' })
     expect(await screen.findByRole('status')).toHaveTextContent('저장했습니다')
   })
 
@@ -77,7 +82,7 @@ describe('SettingsPage', () => {
 
   test('the history button opens the settings history', async () => {
     render(<SettingsPage />)
-    await screen.findByLabelText('학교 이름')
+    await screen.findByLabelText('장부 양식 지역')
     await userEvent.click(screen.getByRole('button', { name: '변경 이력' }))
     expect(api).toHaveBeenCalledWith('audit.list', { table: 'Settings' })
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
