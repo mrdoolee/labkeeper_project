@@ -13,8 +13,7 @@ beforeEach(() => {
 })
 
 function auditRows() {
-  const data = gas.sheet('AuditLog')
-  return data.slice(1).map((line) => Object.fromEntries(data[0].map((h, i) => [h, line[i]])))
+  return gas.history()
 }
 
 describe('settings', () => {

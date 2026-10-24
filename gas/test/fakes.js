@@ -44,6 +44,17 @@ class FakeRange {
     this.sheet.set(this.row, this.col, v)
     return this
   }
+  // Formatting is remembered per cell so tests can check header colours.
+  setBackground(color) {
+    for (let c = 0; c < this.numCols; c++) this.sheet.backgrounds[`${this.row},${this.col + c}`] = color
+    return this
+  }
+  setFontColor() {
+    return this
+  }
+  setFontWeight() {
+    return this
+  }
 }
 
 class FakeSheet {
@@ -54,6 +65,25 @@ class FakeSheet {
     // New Google sheets are 1000 rows × 26 columns; writing outside throws.
     this.maxRows = 1000
     this.maxColumns = 26
+    this.frozenRows = 0
+    this.tabColor = null
+    this.backgrounds = {}
+    this.spreadsheet = null
+  }
+  setName(name) {
+    this.spreadsheet.renameSheet(this, name)
+    return this
+  }
+  setTabColor(color) {
+    this.tabColor = color
+    return this
+  }
+  setFrozenRows(n) {
+    this.frozenRows = n
+    return this
+  }
+  getFrozenRows() {
+    return this.frozenRows
   }
   getMaxRows() {
     return this.maxRows
@@ -66,6 +96,8 @@ class FakeSheet {
   }
   deleteRows(rowPosition, howMany) {
     if (howMany >= this.maxRows) throw new Error("You can't delete all the rows on the sheet.")
+    // Sheets refuses to delete every row below the frozen ones.
+    if (this.maxRows - howMany <= this.frozenRows) throw new Error('Sorry, it is not possible to delete all non-frozen rows.')
     this.data.splice(rowPosition - 1, howMany)
     this.maxRows -= howMany
   }
@@ -122,12 +154,30 @@ export function createFakes(options = {}) {
     getId: () => spreadsheetId,
     getUrl: () => `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
     getSheetByName: (name) => sheets.get(name) || null,
-    insertSheet: (name) => {
+    // Tab order is kept in `order`; index puts the new tab at that position.
+    insertSheet: (name, index) => {
+      if (sheets.has(name)) throw new Error(`A sheet with the name "${name}" already exists.`)
       const s = new FakeSheet(name)
+      s.spreadsheet = spreadsheet
       sheets.set(name, s)
+      if (index === undefined || index >= order.length) order.push(name)
+      else order.splice(index, 0, name)
       return s
     },
+    getSheets: () => order.map((n) => sheets.get(n)),
+    deleteSheet: (sheet) => {
+      sheets.delete(sheet.name)
+      order.splice(order.indexOf(sheet.name), 1)
+    },
+    renameSheet: (sheet, name) => {
+      if (sheets.has(name)) throw new Error(`A sheet with the name "${name}" already exists.`)
+      sheets.delete(sheet.name)
+      order[order.indexOf(sheet.name)] = name
+      sheet.name = name
+      sheets.set(name, sheet)
+    },
   }
+  const order = []
 
   const RealDate = Date
   class FakeDate extends RealDate {
@@ -216,6 +266,8 @@ export function createFakes(options = {}) {
   return {
     globals,
     sheets,
+    // Tab names in order, as the spreadsheet shows them.
+    tabOrder: () => order.slice(),
     lockCalls,
     properties,
     // The Google account running a sheet-menu item ('' when Google hides it).

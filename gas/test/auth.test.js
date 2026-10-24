@@ -42,7 +42,7 @@ describe('first admin setup', () => {
   test('the password is never stored or returned in plain text', () => {
     const res = setupAdmin()
     expect(JSON.stringify(gas.sheet('Users'))).not.toContain('first-pass-1')
-    expect(JSON.stringify(gas.sheet('AuditLog'))).not.toContain('first-pass-1')
+    expect(JSON.stringify(gas.history())).not.toContain('first-pass-1')
     expect(res.user.salt).toBeUndefined()
     expect(res.user.hash).toBeUndefined()
   })
@@ -66,8 +66,9 @@ describe('login', () => {
   test('a successful login is written to the audit log', () => {
     setupAdmin()
     login('kim', 'first-pass-1')
-    const log = gas.sheet('AuditLog')
+    const log = gas.sheet('접속 기록')
     expect(log[log.length - 1]).toContain('login')
+    expect(log[log.length - 1].slice(1, 5)).toEqual(['김운영', '계정', '김운영', '로그인'])
   })
 
   test('a wrong password is INVALID with a Korean message', () => {
@@ -152,6 +153,7 @@ describe('changePassword', () => {
 
   test('shows up in the history as a password change', () => {
     const { token, user } = setupAdmin()
+    gas.fakes.advanceTime(1) // history from different tabs is ordered by time
     const res = gas.call('auth.changePassword', { currentPassword: 'first-pass-1', newPassword: 'brand-new-1' }, token)
     const last = gas.call('audit.list', { table: 'Users', recordId: user.id }, res.data.token).data[0]
     expect(last).toMatchObject({ action: 'passwordChange', userName: '김운영' })
@@ -161,8 +163,8 @@ describe('changePassword', () => {
 describe('setup cannot be reopened', () => {
   test('renaming the active header in the sheet does not let anyone create a new admin', () => {
     setupAdmin()
-    const sheet = gas.fakes.sheets.get('Users')
-    sheet.data[0][sheet.data[0].indexOf('active')] = '사용'
+    const sheet = gas.fakes.sheets.get('계정')
+    sheet.data[0][sheet.data[0].indexOf('사용 여부')] = '사용'
     expect(gas.call('system.info').data.needsSetup).toBe(false)
     expect(() => createAdmin(gas, 'evil', 'x', 'takeover-123')).toThrow('이미 운영 교사 계정이 있습니다')
   })

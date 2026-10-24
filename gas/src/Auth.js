@@ -120,7 +120,7 @@ function authLogin(payload) {
     throw apiError('INVALID', '아이디 또는 비밀번호가 맞지 않습니다.');
   }
   cache.remove(failKey);
-  dbAudit({ id: row.id, name: row.name }, 'Users', row.id, 'login', null, null);
+  dbAudit({ id: row.id, name: row.name }, 'Users', row.id, 'login', null, null, row.name);
   return { token: startSession(row), user: publicUser(row) };
 }
 
@@ -137,6 +137,6 @@ function authChangePassword(payload, user) {
   checkPasswordRule(payload.newPassword);
   var salt = newSalt();
   var updated = dbUpdate('Users', user.id, { salt: salt, hash: hashPassword(payload.newPassword, salt), mustChangePassword: false }, user, { skipAudit: true });
-  dbAudit(user, 'Users', user.id, 'passwordChange', null, null);
+  dbAudit(user, 'Users', user.id, 'passwordChange', null, null, user.name);
   return { token: startSession(updated) };
 }

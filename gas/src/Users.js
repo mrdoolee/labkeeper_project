@@ -58,7 +58,7 @@ function usersResetPassword(payload, user) {
   var password = tempPassword();
   var salt = newSalt();
   dbUpdate('Users', row.id, { salt: salt, hash: hashPassword(password, salt), mustChangePassword: true }, user, { skipAudit: true });
-  dbAudit(user, 'Users', row.id, 'passwordReset', null, null);
+  dbAudit(user, 'Users', row.id, 'passwordReset', null, null, row.name);
   CacheService.getScriptCache().remove('fail:' + row.loginId);
   return { tempPassword: password };
 }

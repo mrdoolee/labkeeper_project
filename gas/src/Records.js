@@ -163,9 +163,14 @@ function recordsRestore(payload, user) {
   return dbRestore(table, payload.id, user);
 }
 
+// Newest first. Account history also shows logins (kept in 접속 기록).
 function auditList(payload) {
   var limit = Math.min(Math.max(Number(payload.limit) || 100, 1), 1000);
-  return dbList('AuditLog')
+  var groups;
+  if (!payload.table) groups = Object.keys(HISTORY_TABS);
+  else if (payload.table === 'Users') groups = ['users', 'access'];
+  else groups = [historyGroupFor(payload.table, '')];
+  return historyEntries(groups)
     .filter(function (a) {
       return (!payload.table || a.table === payload.table) && (!payload.recordId || a.recordId === payload.recordId);
     })

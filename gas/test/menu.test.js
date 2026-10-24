@@ -66,22 +66,20 @@ test('start fresh clears every data row and un-flags the copy', () => {
   expect(gas.ctx.sheetStartFresh()).toBe(true)
   expect(gas.call('system.info').data).toEqual({ name: 'LabKeeper', apiVersion: 3, needsSetup: true, copied: false, template: false, closed: false, closedNote: '', schoolName: '', managerName: '' })
   for (const name of ['Users', 'Settings', 'Rooms']) expect(gas.sheet(name).length).toBe(1)
-  expect(gas.sheet('Rooms')[0]).toContain('name')
+  expect(gas.sheet('Rooms')[0]).toContain('이름')
   // the history keeps one line saying the sheet was started fresh
-  const log = gas.sheet('AuditLog')
-  expect(log.length).toBe(2)
-  expect(log[1]).toContain('startFresh')
-  expect(log[1]).toContain('시트 소유자')
+  expect(gas.history().map((h) => [h.action, h.userName])).toEqual([['startFresh', '시트 소유자']])
+  expect(gas.sheet('환경설정 이력')[1].slice(2, 5)).toEqual(['시트', '시트', '새 학교 시트로 시작'])
 })
 
 test('structure check is empty for a healthy sheet and lists a renamed header or missing sheet', () => {
   createAdmin(gas, 'kim', '김운영', 'first-pass-1')
-  expect(gas.ctx.checkSheetStructure()).toContain('Rooms 시트가 없습니다')
-  const users = gas.fakes.sheets.get('Users')
-  users.data[0][users.data[0].indexOf('loginId')] = 'loginid'
-  expect(gas.ctx.checkSheetStructure()).toContain('Users 시트에 loginId 열이 없습니다')
+  expect(gas.ctx.checkSheetStructure()).toContain('교실 시트가 없습니다')
+  const users = gas.fakes.sheets.get('계정')
+  users.data[0][users.data[0].indexOf('아이디')] = '로그인 아이디'
+  expect(gas.ctx.checkSheetStructure()).toContain('계정 시트에 아이디 열이 없습니다')
   // checking must not repair anything by itself
-  expect(users.data[0]).not.toContain('loginId')
+  expect(users.data[0]).not.toContain('아이디')
 })
 
 test('only an admin gets the sheet address', () => {

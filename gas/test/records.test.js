@@ -127,13 +127,13 @@ describe('many rooms and cabinets', () => {
     const rows = []
     for (let row = 1; row <= 20; row++) for (let col = 1; col <= 20; col++) rows.push({ cabinetId: c.id, row, col, name: `${row}단 ${col}칸` })
     const locksBefore = gas.fakes.lockCalls.wait
-    const zoneWritesBefore = gas.fakes.sheets.get('Zones')?.writeCalls ?? 0
-    const auditWritesBefore = gas.fakes.sheets.get('AuditLog').writeCalls
+    const zoneWritesBefore = gas.fakes.sheets.get('보관장 구역')?.writeCalls ?? 0
+    const auditWritesBefore = gas.fakes.sheets.get('교실 이력').writeCalls
     const res = call('records.createMany', { table: 'Zones', rows })
     expect(res.data).toHaveLength(400)
     expect(gas.fakes.lockCalls.wait - locksBefore).toBe(1)
-    expect(gas.fakes.sheets.get('Zones').writeCalls - zoneWritesBefore).toBeLessThanOrEqual(3)
-    expect(gas.fakes.sheets.get('AuditLog').writeCalls - auditWritesBefore).toBeLessThanOrEqual(2)
+    expect(gas.fakes.sheets.get('보관장 구역').writeCalls - zoneWritesBefore).toBeLessThanOrEqual(3)
+    expect(gas.fakes.sheets.get('교실 이력').writeCalls - auditWritesBefore).toBeLessThanOrEqual(2)
     expect(call('audit.list', { table: 'Zones', limit: 500 }).data.filter((a) => a.action === 'create')).toHaveLength(400)
   })
 

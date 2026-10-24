@@ -4,6 +4,7 @@
 // functions only show dialogs.
 
 function withScriptLock(fn) {
+  ensureLayout(); // may take the lock itself, so before ours
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -112,21 +113,35 @@ function sheetResetAdminPassword(loginId) {
     var salt = newSalt();
     var actor = sheetActor();
     dbUpdate('Users', row.id, { salt: salt, hash: hashPassword(password, salt), mustChangePassword: true }, actor, { skipAudit: true });
-    dbAudit(actor, 'Users', row.id, 'passwordReset', null, null);
+    dbAudit(actor, 'Users', row.id, 'passwordReset', null, null, row.name);
     CacheService.getScriptCache().remove('fail:' + row.loginId);
     return { tempPassword: password };
   });
 }
 
+// Every tab LabKeeper manages: the data tabs, then the 이력 tabs.
+function managedTabNames() {
+  return Object.keys(SHEET_NAMES)
+    .map(function (k) {
+      return SHEET_NAMES[k];
+    })
+    .concat(
+      Object.keys(HISTORY_TABS).map(function (k) {
+        return HISTORY_TABS[k];
+      }),
+    );
+}
+
 // Deletes every data row of every table and the history; headers stay.
 function clearAllRows() {
   var ss = SpreadsheetApp.getActive();
-  Object.keys(TABLES)
-    .concat(['AuditLog'])
-    .forEach(function (name) {
-      var sheet = ss.getSheetByName(name);
-      if (sheet && sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
-    });
+  managedTabNames().forEach(function (name) {
+    var sheet = ss.getSheetByName(name);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    // Sheets refuses to delete every row below a frozen header, so keep one spare row.
+    if (sheet.getMaxRows() <= sheet.getLastRow()) sheet.insertRowsAfter(sheet.getLastRow(), 1);
+    sheet.deleteRows(2, sheet.getLastRow() - 1);
+  });
 }
 
 var TEMPLATE_CONFIRM_WORD = '원본으로 초기화';
@@ -167,22 +182,35 @@ function sheetStartFresh() {
 }
 
 // Lists problems without fixing anything (openTable would add headers).
+// A missing 이력 tab is normal: it appears with the first change in that area.
 function checkSheetStructure() {
   var ss = SpreadsheetApp.getActive();
   var problems = [];
-  Object.keys(TABLES)
-    .concat(['AuditLog'])
-    .forEach(function (name) {
-      var sheet = ss.getSheetByName(name);
-      if (!sheet) {
-        problems.push(name + ' 시트가 없습니다');
-        return;
-      }
-      var header = sheet.getLastColumn() ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String) : [];
-      columnsOf(name).forEach(function (column) {
-        if (header.indexOf(column) < 0) problems.push(name + ' 시트에 ' + column + ' 열이 없습니다');
-      });
+  Object.keys(SHEET_NAMES).forEach(function (table) {
+    var name = SHEET_NAMES[table];
+    var sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      problems.push(name + ' 시트가 없습니다');
+      return;
+    }
+    var header = sheet.getLastColumn() ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String) : [];
+    var keys = header.map(function (h) {
+      return keyForLabel(table, h);
     });
+    columnsOf(table).forEach(function (column) {
+      if (keys.indexOf(column) < 0) problems.push(name + ' 시트에 ' + COLUMN_LABELS[column] + ' 열이 없습니다');
+    });
+  });
+  Object.keys(HISTORY_TABS).forEach(function (group) {
+    var sheet = ss.getSheetByName(HISTORY_TABS[group]);
+    if (!sheet) return;
+    var keys = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function (h) {
+      return historyKeyForLabel(String(h));
+    });
+    HISTORY_COLUMNS.forEach(function (column) {
+      if (keys.indexOf(column) < 0) problems.push(HISTORY_TABS[group] + ' 시트에 ' + HISTORY_LABELS[column] + ' 열이 없습니다');
+    });
+  });
   return problems;
 }
 
@@ -243,7 +271,7 @@ function schoolInfoHtml(current) {
     '<script>var init=' + init + ',f=document.getElementById("f"),m=document.getElementById("msg");' +
     'f.schoolName.value=init.schoolName;f.managerName.value=init.managerName;' +
     'f.onsubmit=function(e){e.preventDefault();m.style.color="#334155";m.textContent="저장하는 중…";' +
-    'google.script.run.withSuccessHandler(function(){m.style.color="#15803d";m.textContent="저장했습니다. 변경 기록은 AuditLog 탭에 남습니다.";})' +
+    'google.script.run.withSuccessHandler(function(){m.style.color="#15803d";m.textContent="저장했습니다. 변경 기록은 환경설정 이력 탭에 남습니다.";})' +
     '.withFailureHandler(function(err){m.style.color="#b91c1c";m.textContent=err.message;})' +
     '.sheetSetSchoolInfo({schoolName:f.schoolName.value,managerName:f.managerName.value});};</script>'
   );

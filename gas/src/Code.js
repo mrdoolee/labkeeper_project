@@ -36,6 +36,7 @@ function doPost(e) {
 
   var lock = null;
   try {
+    ensureLayout();
     if (req.action !== 'system.info' && sheetOwnerState() === 'copied') {
       throw apiError('SHEET_COPIED', '운영 중인 시트의 사본입니다. 시트 메뉴 LabKeeper → 사본을 새 학교 시트로 시작을 먼저 실행하세요.');
     }

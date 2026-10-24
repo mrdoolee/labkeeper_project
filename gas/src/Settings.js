@@ -83,7 +83,7 @@ function writeSettings(payload, user) {
     if (value === current[key]) return;
     var stored = String(value);
     if (rows[key]) dbUpdate('Settings', rows[key].id, { value: stored }, user, { skipAudit: true });
-    else dbCreate('Settings', { key: key, value: stored }, user, { skipAudit: true });
+    else dbCreate('Settings', { key: key, label: SETTING_LABELS[key] || key, value: stored }, user, { skipAudit: true });
     var before = {};
     var after = {};
     before[key] = current[key];

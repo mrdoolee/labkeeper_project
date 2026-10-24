@@ -126,7 +126,7 @@ function authLogin(payload) {
     throw apiError('INVALID', '아이디 또는 비밀번호가 맞지 않습니다.');
   }
   cache.remove(failKey);
-  dbAudit({ id: row.id, name: row.name }, 'Users', row.id, 'login', null, null);
+  dbAudit({ id: row.id, name: row.name }, 'Users', row.id, 'login', null, null, row.name);
   return { token: startSession(row), user: publicUser(row) };
 }
 
@@ -143,7 +143,7 @@ function authChangePassword(payload, user) {
   checkPasswordRule(payload.newPassword);
   var salt = newSalt();
   var updated = dbUpdate('Users', user.id, { salt: salt, hash: hashPassword(payload.newPassword, salt), mustChangePassword: false }, user, { skipAudit: true });
-  dbAudit(user, 'Users', user.id, 'passwordChange', null, null);
+  dbAudit(user, 'Users', user.id, 'passwordChange', null, null, user.name);
   return { token: startSession(updated) };
 }
 
@@ -187,6 +187,7 @@ function doPost(e) {
 
   var lock = null;
   try {
+    ensureLayout();
     if (req.action !== 'system.info' && sheetOwnerState() === 'copied') {
       throw apiError('SHEET_COPIED', '운영 중인 시트의 사본입니다. 시트 메뉴 LabKeeper → 사본을 새 학교 시트로 시작을 먼저 실행하세요.');
     }
@@ -233,34 +234,125 @@ function jsonOut(body) {
 
 // ===== Db.js =====
 
-// Table storage on top of one spreadsheet: one sheet per table, row 1 is the
-// header. Columns are always located by header name, so people can reorder
-// columns or add their own in the sheet without breaking anything.
-// Deletes are soft, and every change is written to AuditLog.
+// Table storage on top of one spreadsheet: one tab per table, row 1 is the
+// header. Tabs and headers are Korean (Schema.js); columns are always found by
+// header, so people can reorder columns or add their own without breaking
+// anything. Deletes are soft, and every change goes to an 이력 tab.
 
-function columnsOf(table) {
-  if (table === 'AuditLog') return AUDIT_COLUMNS;
-  if (!TABLES[table]) throw apiError('INVALID', '알 수 없는 표입니다: ' + table);
-  return ['id'].concat(TABLES[table], COMMON_COLUMNS.slice(1));
+// ---- time ----
+
+// Korean time as ISO text, e.g. 2026-10-24T14:20:00+09:00: readable in the sheet,
+// and Date() in the browser reads it correctly.
+function nowIso() {
+  return kstIso(new Date());
 }
 
-// Returns { sheet, header } and makes sure every expected column has a header.
-function openTable(table) {
+function kstParts(date) {
+  var d = new Date(date.getTime() + 9 * 3600 * 1000);
+  var pad = function (n) {
+    return (n < 10 ? '0' : '') + n;
+  };
+  return {
+    date: d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()),
+    time: pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()),
+    seconds: pad(d.getUTCSeconds()),
+  };
+}
+
+function kstIso(date) {
+  var p = kstParts(date);
+  return p.date + 'T' + p.time + ':' + p.seconds + '+09:00';
+}
+
+// "2026-10-24 14:20" for the 일시 column; old UTC values are converted too.
+function kstText(iso) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso || '');
+  var p = kstParts(d);
+  return p.date + ' ' + p.time;
+}
+
+// ---- tabs ----
+
+var layoutChecked = false;
+
+// Opens (or creates) a tab and makes sure every expected column has a header.
+// Returns { sheet, header } where header[i] is the column key of column i+1
+// (null for a column a person added).
+function openTab(name, columns, labelOf, keyOf, kind) {
+  ensureLayout();
   var ss = SpreadsheetApp.getActive();
-  var sheet = ss.getSheetByName(table) || ss.insertSheet(table);
-  var expected = columnsOf(table);
-  var header = sheet.getLastRow() === 0 ? [] : sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
-  var missing = expected.filter(function (c) {
+  var sheet = ss.getSheetByName(name) || createTab(ss, name, kind);
+  var labels = sheet.getLastRow() === 0 ? [] : sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  var header = labels.map(keyOf);
+  var missing = columns.filter(function (c) {
     return header.indexOf(c) < 0;
   });
   if (missing.length) {
     var extraColumns = header.length + missing.length - sheet.getMaxColumns();
     if (extraColumns > 0) sheet.insertColumnsAfter(sheet.getMaxColumns(), extraColumns);
-    sheet.getRange(1, header.length + 1, 1, missing.length).setValues([missing.map(toCell)]);
+    sheet.getRange(1, header.length + 1, 1, missing.length).setValues([missing.map(function (c) {
+      return toCell(labelOf(c));
+    })]);
+    sheet.getRange(1, header.length + 1, 1, missing.length).setFontWeight('bold');
+    if (kind === 'history') {
+      missing.forEach(function (c, i) {
+        if (HISTORY_COLUMNS.indexOf(c) >= HISTORY_COLUMNS.indexOf(HISTORY_RAW_FROM)) {
+          sheet.getRange(1, header.length + 1 + i).setBackground(RAW_HEADER_BACKGROUND);
+        }
+      });
+    }
     header = header.concat(missing);
   }
   return { sheet: sheet, header: header };
 }
+
+// Data tabs go before the history tabs; colours tell the two apart.
+function createTab(ss, name, kind) {
+  var sheet;
+  if (kind === 'data') {
+    var dataNames = Object.keys(SHEET_NAMES).map(function (k) {
+      return SHEET_NAMES[k];
+    });
+    var position = ss.getSheets().filter(function (s) {
+      return dataNames.indexOf(s.getName()) >= 0;
+    }).length;
+    sheet = ss.insertSheet(name, position);
+  } else {
+    sheet = ss.insertSheet(name);
+  }
+  sheet.setTabColor(TAB_COLORS[kind]);
+  sheet.setFrozenRows(1);
+  return sheet;
+}
+
+function openTable(table) {
+  return openTab(
+    SHEET_NAMES[table] || table,
+    columnsOf(table),
+    function (c) {
+      return COLUMN_LABELS[c];
+    },
+    function (label) {
+      return keyForLabel(table, label);
+    },
+    'data',
+  );
+}
+
+function openHistory(group) {
+  return openTab(
+    HISTORY_TABS[group],
+    HISTORY_COLUMNS,
+    function (c) {
+      return HISTORY_LABELS[c];
+    },
+    historyKeyForLabel,
+    'history',
+  );
+}
+
+// ---- cells ----
 
 // Strings always get a leading apostrophe so Sheets keeps them as text
 // (no formulas from "=...", no numbers from "0123").
@@ -284,9 +376,9 @@ function readRows(t) {
   values.forEach(function (line, i) {
     var obj = {};
     t.header.forEach(function (column, c) {
-      obj[column] = line[c];
+      if (column) obj[column] = line[c];
     });
-    if (obj.id === '' || obj.id === null) return;
+    if (obj.id === '' || obj.id === null || obj.id === undefined) return;
     rows.push({ rowNumber: i + 2, record: obj });
   });
   return rows;
@@ -307,9 +399,7 @@ function checkColumns(table, values) {
   });
 }
 
-function nowIso() {
-  return new Date().toISOString();
-}
+// ---- records ----
 
 function dbList(table, options) {
   options = options || {};
@@ -349,13 +439,13 @@ function appendObjects(t, objects) {
   t.sheet.getRange(start, 1, objects.length, t.header.length).setValues(
     objects.map(function (obj) {
       return t.header.map(function (column) {
-        return toCell(obj[column] === undefined ? '' : obj[column]);
+        return column ? toCell(obj[column] === undefined ? '' : obj[column]) : '';
       });
     }),
   );
 }
 
-// options.skipAudit: the caller writes its own audit entry (Settings does,
+// options.skipAudit: the caller writes its own history entry (Settings does,
 // so its history is keyed by setting name).
 function dbCreate(table, values, user, options) {
   return dbCreateMany(table, [values], user, options)[0];
@@ -374,11 +464,14 @@ function dbCreateMany(table, valuesList, user, options) {
     });
     row.id = Utilities.getUuid();
     row.createdBy = user.id;
+    row.createdByName = user.name;
     row.createdAt = now;
     row.updatedBy = user.id;
+    row.updatedByName = user.name;
     row.updatedAt = now;
     row.deleted = false;
     row.deletedBy = '';
+    row.deletedByName = '';
     row.deletedAt = '';
     return row;
   });
@@ -411,9 +504,13 @@ function writeFields(table, id, fields) {
   return { before: before, after: typed(table, found.record) };
 }
 
+function recordLabel(row) {
+  return row ? row.name || row.loginId || '' : '';
+}
+
 function dbUpdate(table, id, changes, user, options) {
   checkColumns(table, changes);
-  var fields = Object.assign({}, changes, { updatedBy: user.id, updatedAt: nowIso() });
+  var fields = Object.assign({}, changes, { updatedBy: user.id, updatedByName: user.name, updatedAt: nowIso() });
   var result = writeFields(table, id, fields);
   var before = {};
   var after = {};
@@ -423,22 +520,40 @@ function dbUpdate(table, id, changes, user, options) {
       after[key] = result.after[key];
     }
   });
-  if (!(options && options.skipAudit)) dbAudit(user, table, id, 'update', before, after);
+  if (!(options && options.skipAudit)) dbAudit(user, table, id, 'update', before, after, recordLabel(result.after));
   return result.after;
 }
 
 function dbSoftDelete(table, id, user) {
   var now = nowIso();
-  var result = writeFields(table, id, { deleted: true, deletedBy: user.id, deletedAt: now, updatedBy: user.id, updatedAt: now });
+  var result = writeFields(table, id, {
+    deleted: true,
+    deletedBy: user.id,
+    deletedByName: user.name,
+    deletedAt: now,
+    updatedBy: user.id,
+    updatedByName: user.name,
+    updatedAt: now,
+  });
   dbAudit(user, table, id, 'delete', result.before, null);
   return result.after;
 }
 
 function dbRestore(table, id, user) {
-  var result = writeFields(table, id, { deleted: false, deletedBy: '', deletedAt: '', updatedBy: user.id, updatedAt: nowIso() });
+  var result = writeFields(table, id, {
+    deleted: false,
+    deletedBy: '',
+    deletedByName: '',
+    deletedAt: '',
+    updatedBy: user.id,
+    updatedByName: user.name,
+    updatedAt: nowIso(),
+  });
   dbAudit(user, table, id, 'restore', null, result.after);
   return result.after;
 }
+
+// ---- history ----
 
 function withoutSecrets(values) {
   if (!values) return values;
@@ -449,14 +564,97 @@ function withoutSecrets(values) {
   return copy;
 }
 
-function dbAudit(user, table, recordId, action, before, after) {
-  dbAuditMany(user, table, [{ recordId: recordId, action: action, before: before, after: after }]);
+function showValue(value) {
+  if (value === true) return '예';
+  if (value === false) return '아니요';
+  if (value === null || value === undefined || value === '') return '(없음)';
+  return String(value);
+}
+
+function fieldLabel(table, key) {
+  if (table === 'Settings') return SETTING_LABELS[key] || key;
+  return COLUMN_LABELS[key] || key;
+}
+
+// The 바뀐 내용 sentence: "이름: A → B" for updates, the filled-in fields for adds.
+function historySummary(table, action, before, after) {
+  if (action === 'update' && after) {
+    return Object.keys(after)
+      .map(function (key) {
+        return fieldLabel(table, key) + ': ' + showValue(before ? before[key] : null) + ' → ' + showValue(after[key]);
+      })
+      .join(', ');
+  }
+  if (action === 'create' && after) {
+    var own = TABLE_LAYOUT[table] ? TABLE_LAYOUT[table][0] : Object.keys(after);
+    return own
+      .filter(function (key) {
+        return after[key] !== undefined && after[key] !== null && after[key] !== '';
+      })
+      .map(function (key) {
+        return fieldLabel(table, key) + ': ' + showValue(after[key]);
+      })
+      .join(', ');
+  }
+  if (after && after.note) return String(after.note);
+  return '';
+}
+
+// Name of what the entry is about, for the 대상 column.
+function historyTarget(table, recordId, before, after, label) {
+  if (label) return label;
+  if (table === 'Settings') return SETTING_LABELS[recordId] || recordId;
+  if (table === 'System') return '시트';
+  var named = recordLabel(after) || recordLabel(before);
+  if (named) return named;
+  try {
+    return recordLabel(TABLES[table] ? dbGet(table, recordId) : null);
+  } catch (err) {
+    return '';
+  }
+}
+
+// One history line; before/after are objects (or null), at is ISO text.
+function historyRow(entry) {
+  var before = withoutSecrets(entry.before);
+  var after = withoutSecrets(entry.after);
+  return {
+    when: kstText(entry.at),
+    userName: entry.userName,
+    tableLabel: TABLE_LABELS[entry.table] || entry.table,
+    target: historyTarget(entry.table, entry.recordId, before, after, entry.label),
+    actionLabel: ACTION_LABELS[entry.action] || entry.action,
+    summary: historySummary(entry.table, entry.action, before, after),
+    id: entry.id,
+    at: entry.at,
+    userId: entry.userId,
+    table: entry.table,
+    recordId: entry.recordId,
+    action: entry.action,
+    before: before ? JSON.stringify(before) : '',
+    after: after ? JSON.stringify(after) : '',
+  };
+}
+
+function appendHistory(entries) {
+  var byGroup = {};
+  entries.forEach(function (entry) {
+    var group = historyGroupFor(entry.table, entry.action);
+    (byGroup[group] = byGroup[group] || []).push(historyRow(entry));
+  });
+  Object.keys(byGroup).forEach(function (group) {
+    appendObjects(openHistory(group), byGroup[group]);
+  });
+}
+
+// label (optional) names the record when before/after do not carry its name.
+function dbAudit(user, table, recordId, action, before, after, label) {
+  dbAuditMany(user, table, [{ recordId: recordId, action: action, before: before, after: after, label: label }]);
 }
 
 function dbAuditMany(user, table, items) {
   var at = nowIso();
-  appendObjects(
-    openTable('AuditLog'),
+  appendHistory(
     items.map(function (item) {
       return {
         id: Utilities.getUuid(),
@@ -466,11 +664,158 @@ function dbAuditMany(user, table, items) {
         table: table,
         recordId: item.recordId,
         action: item.action,
-        before: item.before ? JSON.stringify(withoutSecrets(item.before)) : '',
-        after: item.after ? JSON.stringify(withoutSecrets(item.after)) : '',
+        before: item.before,
+        after: item.after,
+        label: item.label,
       };
     }),
   );
+}
+
+// History lines of the given groups as plain objects, oldest first.
+function historyEntries(groups) {
+  var ss = SpreadsheetApp.getActive();
+  var out = [];
+  groups.forEach(function (group) {
+    if (!ss.getSheetByName(HISTORY_TABS[group])) return;
+    readRows(openHistory(group)).forEach(function (r) {
+      var e = {};
+      HISTORY_COLUMNS.forEach(function (c) {
+        e[c] = r.record[c] === undefined || r.record[c] === null ? '' : String(r.record[c]);
+      });
+      out.push(e);
+    });
+  });
+  return out
+    .map(function (e, i) {
+      return { e: e, i: i };
+    })
+    .sort(function (a, b) {
+      return Date.parse(a.e.at) - Date.parse(b.e.at) || a.i - b.i;
+    })
+    .map(function (x) {
+      return x.e;
+    });
+}
+
+// ---- moving an old (English) sheet to this layout ----
+
+var LAYOUT_PROP = 'SHEET_LAYOUT';
+var LAYOUT_VERSION = '2';
+
+// Runs once per execution. A sheet made before the Korean layout gets its
+// tabs renamed, headers translated, name columns filled and AuditLog moved
+// into the 이력 tabs.
+function ensureLayout() {
+  if (layoutChecked) return;
+  layoutChecked = true;
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty(LAYOUT_PROP) === LAYOUT_VERSION) return;
+  var ss = SpreadsheetApp.getActive();
+  var legacy =
+    !!ss.getSheetByName('AuditLog') ||
+    Object.keys(SHEET_NAMES).some(function (k) {
+      return !!ss.getSheetByName(k);
+    });
+  if (legacy) {
+    var lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      migrateLegacyLayout(ss);
+    } finally {
+      lock.releaseLock();
+    }
+  }
+  props.setProperty(LAYOUT_PROP, LAYOUT_VERSION);
+}
+
+// Old history values are JSON; a line someone edited by hand must not stop the move.
+function parseOldJson(text) {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    return null;
+  }
+}
+
+function migrateLegacyLayout(ss) {
+  Object.keys(SHEET_NAMES).forEach(function (table) {
+    var old = ss.getSheetByName(table);
+    if (!old || ss.getSheetByName(SHEET_NAMES[table])) return;
+    if (old.getLastColumn() > 0) {
+      var labels = old
+        .getRange(1, 1, 1, old.getLastColumn())
+        .getValues()[0]
+        .map(function (h) {
+          var key = keyForLabel(table, String(h));
+          return toCell(key ? COLUMN_LABELS[key] : String(h));
+        });
+      old.getRange(1, 1, 1, labels.length).setValues([labels]).setFontWeight('bold');
+    }
+    old.setName(SHEET_NAMES[table]);
+    old.setTabColor(TAB_COLORS.data);
+    old.setFrozenRows(1);
+  });
+
+  // Fill the new name columns from the account list.
+  var names = {};
+  names[SYSTEM_USER.id] = SYSTEM_USER.name;
+  names[SHEET_OWNER.id] = SHEET_OWNER.name;
+  if (ss.getSheetByName(SHEET_NAMES.Users)) {
+    readRows(openTable('Users')).forEach(function (r) {
+      names[String(r.record.id)] = String(r.record.name);
+    });
+  }
+  Object.keys(SHEET_NAMES).forEach(function (table) {
+    if (!ss.getSheetByName(SHEET_NAMES[table])) return;
+    var t = openTable(table);
+    var rows = readRows(t);
+    ['createdBy', 'updatedBy', 'deletedBy'].forEach(function (idColumn) {
+      var nameColumn = idColumn + 'Name';
+      var col = t.header.indexOf(nameColumn) + 1;
+      rows.forEach(function (r) {
+        var id = String(r.record[idColumn] || '');
+        if (id && !r.record[nameColumn]) t.sheet.getRange(r.rowNumber, col).setValue(toCell(names[id] || id));
+      });
+    });
+  });
+
+  // AuditLog → the 이력 tabs.
+  var log = ss.getSheetByName('AuditLog');
+  if (log) {
+    if (log.getLastRow() > 1) {
+      var head = log.getRange(1, 1, 1, log.getLastColumn()).getValues()[0].map(String);
+      var lines = log.getRange(2, 1, log.getLastRow() - 1, head.length).getValues();
+      appendHistory(
+        lines
+          .map(function (line) {
+            var e = {};
+            head.forEach(function (h, i) {
+              e[h] = line[i] === null || line[i] === undefined ? '' : String(line[i]);
+            });
+            return e;
+          })
+          .filter(function (e) {
+            return e.id;
+          })
+          .map(function (e) {
+            return {
+              id: e.id,
+              at: e.at,
+              userId: e.userId,
+              userName: e.userName,
+              table: e.table,
+              recordId: e.recordId,
+              action: e.action,
+              before: parseOldJson(e.before),
+              after: parseOldJson(e.after),
+            };
+          }),
+      );
+    }
+    ss.deleteSheet(log);
+  }
 }
 
 // ===== Menu.js =====
@@ -481,6 +826,7 @@ function dbAuditMany(user, table, items) {
 // functions only show dialogs.
 
 function withScriptLock(fn) {
+  ensureLayout(); // may take the lock itself, so before ours
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -589,21 +935,35 @@ function sheetResetAdminPassword(loginId) {
     var salt = newSalt();
     var actor = sheetActor();
     dbUpdate('Users', row.id, { salt: salt, hash: hashPassword(password, salt), mustChangePassword: true }, actor, { skipAudit: true });
-    dbAudit(actor, 'Users', row.id, 'passwordReset', null, null);
+    dbAudit(actor, 'Users', row.id, 'passwordReset', null, null, row.name);
     CacheService.getScriptCache().remove('fail:' + row.loginId);
     return { tempPassword: password };
   });
 }
 
+// Every tab LabKeeper manages: the data tabs, then the 이력 tabs.
+function managedTabNames() {
+  return Object.keys(SHEET_NAMES)
+    .map(function (k) {
+      return SHEET_NAMES[k];
+    })
+    .concat(
+      Object.keys(HISTORY_TABS).map(function (k) {
+        return HISTORY_TABS[k];
+      }),
+    );
+}
+
 // Deletes every data row of every table and the history; headers stay.
 function clearAllRows() {
   var ss = SpreadsheetApp.getActive();
-  Object.keys(TABLES)
-    .concat(['AuditLog'])
-    .forEach(function (name) {
-      var sheet = ss.getSheetByName(name);
-      if (sheet && sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
-    });
+  managedTabNames().forEach(function (name) {
+    var sheet = ss.getSheetByName(name);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    // Sheets refuses to delete every row below a frozen header, so keep one spare row.
+    if (sheet.getMaxRows() <= sheet.getLastRow()) sheet.insertRowsAfter(sheet.getLastRow(), 1);
+    sheet.deleteRows(2, sheet.getLastRow() - 1);
+  });
 }
 
 var TEMPLATE_CONFIRM_WORD = '원본으로 초기화';
@@ -644,22 +1004,35 @@ function sheetStartFresh() {
 }
 
 // Lists problems without fixing anything (openTable would add headers).
+// A missing 이력 tab is normal: it appears with the first change in that area.
 function checkSheetStructure() {
   var ss = SpreadsheetApp.getActive();
   var problems = [];
-  Object.keys(TABLES)
-    .concat(['AuditLog'])
-    .forEach(function (name) {
-      var sheet = ss.getSheetByName(name);
-      if (!sheet) {
-        problems.push(name + ' 시트가 없습니다');
-        return;
-      }
-      var header = sheet.getLastColumn() ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String) : [];
-      columnsOf(name).forEach(function (column) {
-        if (header.indexOf(column) < 0) problems.push(name + ' 시트에 ' + column + ' 열이 없습니다');
-      });
+  Object.keys(SHEET_NAMES).forEach(function (table) {
+    var name = SHEET_NAMES[table];
+    var sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      problems.push(name + ' 시트가 없습니다');
+      return;
+    }
+    var header = sheet.getLastColumn() ? sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String) : [];
+    var keys = header.map(function (h) {
+      return keyForLabel(table, h);
     });
+    columnsOf(table).forEach(function (column) {
+      if (keys.indexOf(column) < 0) problems.push(name + ' 시트에 ' + COLUMN_LABELS[column] + ' 열이 없습니다');
+    });
+  });
+  Object.keys(HISTORY_TABS).forEach(function (group) {
+    var sheet = ss.getSheetByName(HISTORY_TABS[group]);
+    if (!sheet) return;
+    var keys = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function (h) {
+      return historyKeyForLabel(String(h));
+    });
+    HISTORY_COLUMNS.forEach(function (column) {
+      if (keys.indexOf(column) < 0) problems.push(HISTORY_TABS[group] + ' 시트에 ' + HISTORY_LABELS[column] + ' 열이 없습니다');
+    });
+  });
   return problems;
 }
 
@@ -720,7 +1093,7 @@ function schoolInfoHtml(current) {
     '<script>var init=' + init + ',f=document.getElementById("f"),m=document.getElementById("msg");' +
     'f.schoolName.value=init.schoolName;f.managerName.value=init.managerName;' +
     'f.onsubmit=function(e){e.preventDefault();m.style.color="#334155";m.textContent="저장하는 중…";' +
-    'google.script.run.withSuccessHandler(function(){m.style.color="#15803d";m.textContent="저장했습니다. 변경 기록은 AuditLog 탭에 남습니다.";})' +
+    'google.script.run.withSuccessHandler(function(){m.style.color="#15803d";m.textContent="저장했습니다. 변경 기록은 환경설정 이력 탭에 남습니다.";})' +
     '.withFailureHandler(function(err){m.style.color="#b91c1c";m.textContent=err.message;})' +
     '.sheetSetSchoolInfo({schoolName:f.schoolName.value,managerName:f.managerName.value});};</script>'
   );
@@ -1047,9 +1420,14 @@ function recordsRestore(payload, user) {
   return dbRestore(table, payload.id, user);
 }
 
+// Newest first. Account history also shows logins (kept in 접속 기록).
 function auditList(payload) {
   var limit = Math.min(Math.max(Number(payload.limit) || 100, 1), 1000);
-  return dbList('AuditLog')
+  var groups;
+  if (!payload.table) groups = Object.keys(HISTORY_TABS);
+  else if (payload.table === 'Users') groups = ['users', 'access'];
+  else groups = [historyGroupFor(payload.table, '')];
+  return historyEntries(groups)
     .filter(function (a) {
       return (!payload.table || a.table === payload.table) && (!payload.recordId || a.recordId === payload.recordId);
     })
@@ -1072,19 +1450,149 @@ function auditList(payload) {
 
 // ===== Schema.js =====
 
-// Table definitions. Every table except AuditLog also gets COMMON_COLUMNS.
+// Table definitions. Code uses the keys (Users, roomId …); the spreadsheet
+// shows Korean tab names and headers (SHEET_NAMES, COLUMN_LABELS).
 
-var COMMON_COLUMNS = ['id', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'deleted', 'deletedBy', 'deletedAt'];
-
+// Columns the caller may write, per table. Every table also gets the common columns.
 var TABLES = {
   Users: ['loginId', 'name', 'role', 'salt', 'hash', 'mustChangePassword', 'active'],
-  Settings: ['key', 'value'],
+  Settings: ['key', 'label', 'value'],
   Rooms: ['name', 'isLab', 'note'],
   Cabinets: ['roomId', 'name', 'type', 'locked', 'rows', 'cols', 'note'],
   Zones: ['cabinetId', 'row', 'col', 'name', 'allowedClasses'],
 };
 
-var AUDIT_COLUMNS = ['id', 'at', 'userId', 'userName', 'table', 'recordId', 'action', 'before', 'after'];
+var SHEET_NAMES = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역' };
+var TABLE_LABELS = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역', System: '시트' };
+
+// Column order in a new tab: the table's readable columns, who/when, then ids and secrets.
+var COMMON_VISIBLE = ['createdByName', 'createdAt', 'updatedByName', 'updatedAt', 'deleted', 'deletedByName', 'deletedAt'];
+var COMMON_IDS = ['id', 'createdBy', 'updatedBy', 'deletedBy'];
+var TABLE_LAYOUT = {
+  Users: [['loginId', 'name', 'role', 'mustChangePassword', 'active'], ['salt', 'hash']],
+  Settings: [['label', 'value'], ['key']],
+  Rooms: [['name', 'isLab', 'note'], []],
+  Cabinets: [['name', 'type', 'locked', 'rows', 'cols', 'note'], ['roomId']],
+  Zones: [['row', 'col', 'name', 'allowedClasses'], ['cabinetId']],
+};
+
+var COLUMN_LABELS = {
+  id: 'ID',
+  createdBy: '작성자 ID',
+  createdByName: '작성자',
+  createdAt: '작성일시',
+  updatedBy: '수정자 ID',
+  updatedByName: '수정자',
+  updatedAt: '수정일시',
+  deleted: '삭제됨',
+  deletedBy: '삭제자 ID',
+  deletedByName: '삭제자',
+  deletedAt: '삭제일시',
+  loginId: '아이디',
+  name: '이름',
+  role: '역할',
+  mustChangePassword: '비밀번호 변경 필요',
+  active: '사용 여부',
+  salt: 'salt (암호용)',
+  hash: 'hash (암호용)',
+  key: '항목 키',
+  label: '항목',
+  value: '값',
+  isLab: '과학실 여부',
+  note: '메모',
+  type: '종류',
+  locked: '잠금',
+  rows: '단 수',
+  cols: '칸 수',
+  roomId: '교실 ID',
+  row: '단',
+  col: '칸',
+  allowedClasses: '허용 보관 분류',
+  cabinetId: '보관장 ID',
+};
+
+var SETTING_LABELS = {
+  schoolName: '학교 이름',
+  managerName: '관리 교사',
+  schoolLevel: '학교급',
+  region: '장부 양식 지역',
+  signerScienceHead: '과학부장',
+  signerVicePrincipal: '교감',
+  signerPrincipal: '교장',
+  labOver100m2: '실험실 면적 100㎡ 이상',
+  wasteDisposal: '폐수 처리 방식',
+};
+
+// History is split by area into its own tabs. Left columns are for people,
+// right columns (grey header) are the raw data the app reads back.
+var HISTORY_TABS = {
+  settings: '환경설정 이력',
+  users: '계정 이력',
+  access: '접속 기록',
+  rooms: '교실 이력',
+  other: '기타 이력',
+};
+var HISTORY_GROUP_OF_TABLE = { Settings: 'settings', System: 'settings', Users: 'users', Rooms: 'rooms', Cabinets: 'rooms', Zones: 'rooms' };
+var HISTORY_COLUMNS = ['when', 'userName', 'tableLabel', 'target', 'actionLabel', 'summary', 'id', 'at', 'userId', 'table', 'recordId', 'action', 'before', 'after'];
+var HISTORY_RAW_FROM = 'id';
+var HISTORY_LABELS = {
+  when: '일시',
+  userName: '사람',
+  tableLabel: '표',
+  target: '대상',
+  actionLabel: '동작',
+  summary: '바뀐 내용',
+  id: '기록 ID',
+  at: '시각(원자료)',
+  userId: '사람 ID',
+  table: '표 키',
+  recordId: '대상 ID',
+  action: '동작 키',
+  before: '이전 값(원자료)',
+  after: '새 값(원자료)',
+};
+var ACTION_LABELS = {
+  create: '추가',
+  update: '수정',
+  delete: '삭제',
+  restore: '복구',
+  login: '로그인',
+  passwordChange: '비밀번호 변경',
+  passwordReset: '비밀번호 초기화',
+  close: '운영 종료',
+  reopen: '운영 종료 풀기',
+  continueCopy: '사본 계속 쓰기',
+  startFresh: '새 학교 시트로 시작',
+};
+var TAB_COLORS = { data: '#2563eb', history: '#94a3b8' };
+var RAW_HEADER_BACKGROUND = '#e2e8f0';
+
+function columnsOf(table) {
+  var layout = TABLE_LAYOUT[table];
+  if (!layout) throw apiError('INVALID', '알 수 없는 표입니다: ' + table);
+  return layout[0].concat(COMMON_VISIBLE, COMMON_IDS, layout[1]);
+}
+
+// Header text → column key. Old English headers (the key itself) are accepted too.
+function keyForLabel(table, label) {
+  var columns = columnsOf(table);
+  for (var i = 0; i < columns.length; i++) {
+    if (COLUMN_LABELS[columns[i]] === label || columns[i] === label) return columns[i];
+  }
+  return null;
+}
+
+function historyKeyForLabel(label) {
+  for (var i = 0; i < HISTORY_COLUMNS.length; i++) {
+    if (HISTORY_LABELS[HISTORY_COLUMNS[i]] === label || HISTORY_COLUMNS[i] === label) return HISTORY_COLUMNS[i];
+  }
+  return null;
+}
+
+function historyGroupFor(table, action) {
+  if (action === 'login') return 'access';
+  return HISTORY_GROUP_OF_TABLE[table] || 'other';
+}
 
 var BOOLEAN_COLUMNS = ['deleted', 'locked', 'active', 'mustChangePassword', 'labOver100m2', 'isLab'];
 var NUMBER_COLUMNS = ['rows', 'cols', 'row', 'col'];
@@ -1199,7 +1707,7 @@ function writeSettings(payload, user) {
     if (value === current[key]) return;
     var stored = String(value);
     if (rows[key]) dbUpdate('Settings', rows[key].id, { value: stored }, user, { skipAudit: true });
-    else dbCreate('Settings', { key: key, value: stored }, user, { skipAudit: true });
+    else dbCreate('Settings', { key: key, label: SETTING_LABELS[key] || key, value: stored }, user, { skipAudit: true });
     var before = {};
     var after = {};
     before[key] = current[key];
@@ -1238,7 +1746,8 @@ function systemActions() {
 
 // Users rows, read without creating the sheet.
 function usersSheetHasRows() {
-  var sheet = SpreadsheetApp.getActive().getSheetByName('Users');
+  ensureLayout();
+  var sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.Users);
   return !!sheet && sheet.getLastRow() > 1;
 }
 
@@ -1344,7 +1853,7 @@ function usersResetPassword(payload, user) {
   var password = tempPassword();
   var salt = newSalt();
   dbUpdate('Users', row.id, { salt: salt, hash: hashPassword(password, salt), mustChangePassword: true }, user, { skipAudit: true });
-  dbAudit(user, 'Users', row.id, 'passwordReset', null, null);
+  dbAudit(user, 'Users', row.id, 'passwordReset', null, null, row.name);
   CacheService.getScriptCache().remove('fail:' + row.loginId);
   return { tempPassword: password };
 }

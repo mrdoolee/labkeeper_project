@@ -79,6 +79,7 @@ describe('users.resetPassword', () => {
   test('logs the teacher out everywhere and is recorded in the history', () => {
     const { user, tempPassword } = createUser('lee')
     const teacherToken = loginToken('lee', tempPassword)
+    gas.fakes.advanceTime(1) // history from different tabs is ordered by time
     gas.call('users.resetPassword', { id: user.id }, adminToken)
     expect(gas.call('auth.me', {}, teacherToken).error.code).toBe('AUTH_REQUIRED')
     const last = gas.call('audit.list', { table: 'Users', recordId: user.id }, adminToken).data[0]
@@ -105,6 +106,6 @@ describe('users.update and the last admin', () => {
   test('renaming works and is audited', () => {
     const { user } = createUser('lee')
     expect(gas.call('users.update', { id: user.id, name: '이과학' }, adminToken).data.name).toBe('이과학')
-    expect(JSON.stringify(gas.sheet('AuditLog'))).toContain('이과학')
+    expect(JSON.stringify(gas.history())).toContain('이과학')
   })
 })

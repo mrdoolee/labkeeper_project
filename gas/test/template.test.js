@@ -25,8 +25,9 @@ test('needs the exact confirmation word and changes nothing otherwise', () => {
 test('empties every table and the history, keeping the headers', () => {
   fillSheet()
   gas.ctx.sheetMakeTemplate(' 원본으로 초기화 ')
-  for (const name of ['Users', 'Settings', 'Rooms', 'AuditLog']) expect(gas.sheet(name).length).toBe(1)
-  expect(gas.sheet('Users')[0]).toContain('loginId')
+  for (const name of ['Users', 'Settings', 'Rooms']) expect(gas.sheet(name).length).toBe(1)
+  expect(gas.history()).toEqual([])
+  expect(gas.sheet('Users')[0]).toContain('아이디')
   expect(gas.ctx.checkSheetStructure().filter((p) => p.includes('열이 없습니다'))).toEqual([])
 })
 

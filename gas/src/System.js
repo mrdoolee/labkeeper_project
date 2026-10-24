@@ -25,7 +25,8 @@ function systemActions() {
 
 // Users rows, read without creating the sheet.
 function usersSheetHasRows() {
-  var sheet = SpreadsheetApp.getActive().getSheetByName('Users');
+  ensureLayout();
+  var sheet = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.Users);
   return !!sheet && sheet.getLastRow() > 1;
 }
 

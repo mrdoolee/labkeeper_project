@@ -14,15 +14,15 @@ function headerOf(table) {
   return gas.sheet(table)[0]
 }
 
+// column is a column key (name, note …) or a header someone typed.
 function cell(table, rowIndex, column) {
   const data = gas.sheet(table)
-  return data[rowIndex][data[0].indexOf(column)]
+  const label = gas.ctx.COLUMN_LABELS[column] ?? column
+  return data[rowIndex][data[0].indexOf(label)]
 }
 
 function audit() {
-  const data = gas.sheet('AuditLog')
-  const head = data[0]
-  return data.slice(1).map((line) => Object.fromEntries(head.map((h, i) => [h, line[i]])))
+  return gas.history()
 }
 
 describe('dbCreate', () => {
@@ -30,9 +30,9 @@ describe('dbCreate', () => {
     const row = db.dbCreate('Rooms', { name: '제1과학실', isLab: true }, u)
     expect(row.id).toMatch(/^[0-9a-f-]{36}$/)
     expect(row).toMatchObject({ name: '제1과학실', isLab: true, createdBy: 'user-1', updatedBy: 'user-1', deleted: false })
-    expect(row.createdAt).toBe('2026-03-02T09:00:00.000Z')
+    expect(row.createdAt).toBe('2026-03-02T18:00:00+09:00')
     expect(headerOf('Rooms')).toEqual(
-      expect.arrayContaining(['id', 'name', 'isLab', 'note', 'createdBy', 'createdAt', 'updatedBy', 'updatedAt', 'deleted', 'deletedBy', 'deletedAt']),
+      expect.arrayContaining(['ID', '이름', '과학실 여부', '메모', '작성자 ID', '작성자', '작성일시', '수정자 ID', '수정일시', '삭제됨', '삭제자 ID', '삭제일시']),
     )
     expect(db.dbGet('Rooms', row.id)).toMatchObject({ name: '제1과학실', isLab: true })
     expect(audit()).toHaveLength(1)
@@ -64,7 +64,7 @@ describe('dbUpdate', () => {
     gas.fakes.advanceTime(60)
     const after = db.dbUpdate('Rooms', row.id, { name: '제2과학실' }, u2)
     expect(after).toMatchObject({ name: '제2과학실', note: '1층', updatedBy: 'user-2', createdBy: 'user-1' })
-    expect(after.updatedAt).toBe('2026-03-02T09:01:00.000Z')
+    expect(after.updatedAt).toBe('2026-03-02T18:01:00+09:00')
     const log = audit()[1]
     expect(log.action).toBe('update')
     expect(JSON.parse(log.before)).toEqual({ name: '과학실' })
@@ -101,7 +101,7 @@ describe('soft delete and restore', () => {
     expect(db.dbList('Rooms')).toHaveLength(0)
     const all = db.dbList('Rooms', { includeDeleted: true })
     expect(all[0]).toMatchObject({ deleted: true, deletedBy: 'user-2' })
-    expect(all[0].deletedAt).toBe('2026-03-02T09:00:00.000Z')
+    expect(all[0].deletedAt).toBe('2026-03-02T18:00:00+09:00')
     db.dbRestore('Rooms', row.id, u)
     expect(db.dbList('Rooms')).toHaveLength(1)
     expect(db.dbGet('Rooms', row.id)).toMatchObject({ deleted: false, deletedBy: '', deletedAt: '' })
@@ -123,27 +123,27 @@ describe('dbList', () => {
     const b = db.dbCreate('Rooms', { name: '준비실', isLab: false, note: 'B' }, u)
     const before = db.dbList('Rooms')
 
-    const sheet = gas.fakes.sheets.get('Rooms')
+    const sheet = gas.fakes.sheets.get('교실')
     sheet.data = sheet.data.map((line, i) => {
       const reversed = line.slice().reverse()
-      reversed.splice(2, 0, i === 0 ? '메모' : '손으로 쓴 메모')
+      reversed.splice(2, 0, i === 0 ? '손 메모' : '손으로 쓴 메모')
       return reversed
     })
 
     expect(db.dbList('Rooms')).toEqual(before)
     const c = db.dbCreate('Rooms', { name: '과학실 3', isLab: true }, u)
     expect(cell('Rooms', 3, 'name')).toBe('과학실 3')
-    expect(cell('Rooms', 3, '메모')).toBe('')
+    expect(cell('Rooms', 3, '손 메모')).toBe('')
     expect(db.dbList('Rooms').map((r) => r.id)).toEqual([a.id, b.id, c.id])
   })
 
   test('adds a header that is missing from an existing sheet', () => {
     const row = db.dbCreate('Rooms', { name: '과학실' }, u)
-    const sheet = gas.fakes.sheets.get('Rooms')
-    const noteAt = sheet.data[0].indexOf('note')
+    const sheet = gas.fakes.sheets.get('교실')
+    const noteAt = sheet.data[0].indexOf('메모')
     sheet.data = sheet.data.map((line) => line.filter((_, i) => i !== noteAt))
     db.dbUpdate('Rooms', row.id, { note: '새 메모' }, u)
-    expect(headerOf('Rooms')).toContain('note')
+    expect(headerOf('Rooms')).toContain('메모')
     expect(db.dbGet('Rooms', row.id).note).toBe('새 메모')
   })
 })
@@ -152,7 +152,7 @@ describe('audit of users', () => {
   test('salt and hash never reach the audit log', () => {
     const row = db.dbCreate('Users', { loginId: 'kim', name: '김', role: 'admin', salt: 'SALT-SECRET-1', hash: 'HASH-SECRET-1', mustChangePassword: false, active: true }, u)
     db.dbUpdate('Users', row.id, { hash: 'HASH-SECRET-2', name: '김교사' }, u)
-    const text = JSON.stringify(gas.sheet('AuditLog'))
+    const text = JSON.stringify(gas.sheet('계정 이력'))
     expect(text).not.toContain('SALT-SECRET')
     expect(text).not.toContain('HASH-SECRET')
     expect(text).toContain('김교사')
@@ -166,13 +166,13 @@ describe('sheet size', () => {
     db.dbCreateMany('Zones', rows, u)
     db.dbCreate('Zones', { cabinetId: 'c1', row: 2, col: 2, name: 'last' }, u)
     expect(db.dbList('Zones')).toHaveLength(1101)
-    expect(gas.sheet('AuditLog').length).toBe(1102)
+    expect(gas.sheet('교실 이력').length).toBe(1102)
   })
 
   test('adds columns when someone has filled all 26 columns', () => {
     db.dbCreate('Rooms', { name: '과학실' }, u)
-    const sheet = gas.fakes.sheets.get('Rooms')
-    const noteAt = sheet.data[0].indexOf('note')
+    const sheet = gas.fakes.sheets.get('교실')
+    const noteAt = sheet.data[0].indexOf('메모')
     sheet.data = sheet.data.map((line, i) => {
       const copy = line.filter((_, c) => c !== noteAt)
       while (copy.length < 26) copy.push(i === 0 ? '메모' + copy.length : '')

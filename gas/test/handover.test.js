@@ -9,9 +9,7 @@ beforeEach(() => {
 })
 
 function auditRows() {
-  const rows = gas.sheet('AuditLog')
-  const head = rows[0]
-  return rows.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])))
+  return gas.history()
 }
 
 // ---- school info (entered from the sheet menu, shown in the web app) ----
@@ -23,7 +21,7 @@ test('school info entered from the sheet is shown by system.info and settings.ge
   expect(gas.call('settings.get', {}, token).data).toMatchObject({ schoolName: '청주중학교', managerName: '김운영' })
 })
 
-test('each change is written to the AuditLog sheet with the Google account that made it', () => {
+test('each change is written to the 환경설정 이력 sheet with the Google account that made it', () => {
   createAdmin(gas, 'kim', '김운영', 'first-pass-1')
   gas.fakes.setActiveUserEmail('teacher@example.com')
   gas.ctx.sheetSetSchoolInfo({ schoolName: '청주중학교', managerName: '김운영' })
@@ -35,7 +33,8 @@ test('each change is written to the AuditLog sheet with the Google account that 
   expect(JSON.parse(changes[2].after)).toEqual({ managerName: '이교사' })
   // the Settings rows themselves keep who changed them last
   const settings = gas.sheet('Settings')
-  expect(settings[0]).toContain('updatedBy')
+  expect(settings[0]).toContain('수정자')
+  expect(gas.sheet('환경설정 이력').at(-1).slice(1, 6)).toEqual(['시트 소유자 (teacher@example.com)', '환경설정', '관리 교사', '수정', '관리 교사: 김운영 → 이교사'])
 })
 
 test('without a visible email the history says 시트 소유자', () => {

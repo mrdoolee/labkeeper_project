@@ -27,9 +27,28 @@ export function loadGas(options = {}) {
     call(action, payload, token) {
       return post(JSON.stringify({ action, token, payload }))
     },
+    // Raw cells of a tab, by the tab's real (Korean) name or a table key.
     sheet(name) {
-      const s = fakes.sheets.get(name)
+      const s = fakes.sheets.get(name) || fakes.sheets.get(ctx.SHEET_NAMES?.[name])
       return s ? s.data.map((line) => line.slice()) : null
+    },
+    // Rows of a data table as objects keyed by column key (e.g. createdByName).
+    rows(table) {
+      const data = this.sheet(table)
+      if (!data) return []
+      const keys = data[0].map((label) => ctx.keyForLabel(table, String(label)))
+      return data.slice(1).map((line) => Object.fromEntries(keys.map((k, i) => [k ?? `?${i}`, line[i]])))
+    },
+    // Every history line from all 이력 tabs, oldest first, keyed by column key.
+    history() {
+      const out = []
+      for (const name of Object.values(ctx.HISTORY_TABS)) {
+        const data = this.sheet(name)
+        if (!data) continue
+        const keys = data[0].map((label) => ctx.historyKeyForLabel(String(label)))
+        data.slice(1).forEach((line) => out.push(Object.fromEntries(keys.map((k, i) => [k ?? `?${i}`, line[i]]))))
+      }
+      return out.map((r, i) => [r, i]).sort((a, b) => Date.parse(a[0].at) - Date.parse(b[0].at) || a[1] - b[1]).map(([r]) => r)
     },
   }
 }
