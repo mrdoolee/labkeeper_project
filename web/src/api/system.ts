@@ -10,6 +10,8 @@ export interface SystemInfo {
   apiVersion: number
   needsSetup: boolean
   copied: boolean
+  /** The distribution template (배포용 원본): never used as a school sheet. Absent on older GAS. */
+  template?: boolean
   /** Locked from the sheet menu (운영 종료); closedNote is shown to teachers. */
   closed: boolean
   closedNote: string

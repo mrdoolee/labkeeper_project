@@ -50,6 +50,21 @@ export function CopiedScreen() {
   )
 }
 
+export function TemplateScreen() {
+  const { disconnect } = useAuth()
+  return (
+    <Screen title="배포용 원본 시트입니다">
+      <p>이 주소는 학교에서 쓰는 시트가 아니라 다른 학교에 나눠 주는 원본입니다.</p>
+      <p>원본을 "사본 만들기"로 복사한 시트에서 웹 앱을 배포하고, 그 주소로 연결해 주세요.</p>
+      <div className="toolbar">
+        <button className="primary" type="button" onClick={disconnect}>
+          주소 바꾸기
+        </button>
+      </div>
+    </Screen>
+  )
+}
+
 export function ClosedScreen() {
   const { connection, recheck, disconnect } = useAuth()
   return (

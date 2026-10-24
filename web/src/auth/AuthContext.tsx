@@ -12,7 +12,7 @@ export interface User {
   active: boolean
 }
 
-export type ConnectionState = 'none' | 'checking' | 'error' | 'copied' | 'closed' | 'outdated' | 'needsAdmin' | 'switch' | 'ready'
+export type ConnectionState = 'none' | 'checking' | 'error' | 'copied' | 'template' | 'closed' | 'outdated' | 'needsAdmin' | 'switch' | 'ready'
 
 export interface Connection {
   state: ConnectionState
@@ -44,6 +44,7 @@ export function isOldGas(err: unknown): boolean {
 }
 
 function stateFor(info: SystemInfo): ConnectionState {
+  if (info.template) return 'template'
   if (info.copied) return 'copied'
   if (info.apiVersion < REQUIRED_API_VERSION) return 'outdated'
   if (info.closed) return 'closed'

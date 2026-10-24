@@ -7,6 +7,14 @@ var API_VERSION = 3;
 var OWNER_PROP = 'OWNER_SPREADSHEET_ID';
 // Set by the sheet menu 운영 종료: {at, note}. A closed sheet answers only system.info.
 var CLOSED_PROP = 'SHEET_CLOSED';
+// Id of the sheet that was made the distribution template (배포용 원본). Copies
+// have another id, so the mark never applies to a school's copy.
+var TEMPLATE_PROP = 'TEMPLATE_SPREADSHEET_ID';
+var TEMPLATE_MESSAGE = '배포용 원본 시트입니다. 원본을 "사본 만들기"로 복사한 시트에서 웹 앱을 배포해 쓰세요.';
+
+function isTemplateSheet() {
+  return PropertiesService.getScriptProperties().getProperty(TEMPLATE_PROP) === String(SpreadsheetApp.getActive().getId());
+}
 
 function systemActions() {
   return {
@@ -49,6 +57,7 @@ function systemInfo() {
     apiVersion: API_VERSION,
     needsSetup: !hasAnyUser(),
     copied: copied,
+    template: isTemplateSheet(),
     closed: !!closed,
     closedNote: closed ? closed.note : '',
     schoolName: settings.schoolName,

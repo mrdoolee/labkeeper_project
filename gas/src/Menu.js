@@ -28,6 +28,7 @@ function sheetActor() {
 // School name and operating teacher, shown at the bottom of the web menu.
 function sheetSetSchoolInfo(form) {
   return withScriptLock(function () {
+    if (isTemplateSheet()) throw apiError('INVALID', TEMPLATE_MESSAGE);
     writeSettings({ schoolName: String(form.schoolName || ''), managerName: String(form.managerName || '') }, sheetActor());
     var s = settingsGet();
     return { schoolName: s.schoolName, managerName: s.managerName };
@@ -80,6 +81,7 @@ function sheetContinueCopy() {
 
 function sheetCreateAdmin(form) {
   return withScriptLock(function () {
+    if (isTemplateSheet()) throw apiError('INVALID', TEMPLATE_MESSAGE);
     sheetOwnerState(); // the sheet that gets the first account is the owner
     if (hasAnyUser()) throw apiError('SETUP_DONE', '이미 운영 교사 계정이 있습니다.');
     var loginId = normalizeLoginId(form.loginId);
@@ -116,6 +118,37 @@ function sheetResetAdminPassword(loginId) {
   });
 }
 
+// Deletes every data row of every table and the history; headers stay.
+function clearAllRows() {
+  var ss = SpreadsheetApp.getActive();
+  Object.keys(TABLES)
+    .concat(['AuditLog'])
+    .forEach(function (name) {
+      var sheet = ss.getSheetByName(name);
+      if (sheet && sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
+    });
+}
+
+var TEMPLATE_CONFIRM_WORD = '원본으로 초기화';
+
+// Turns a sheet (e.g. one used for trying LabKeeper out) into the empty
+// distribution template other schools copy. Everything is erased, including
+// the history (it would otherwise be copied into every school), and the sheet
+// refuses to be used as a school sheet from then on.
+function sheetMakeTemplate(confirmWord) {
+  if (String(confirmWord || '').trim() !== TEMPLATE_CONFIRM_WORD) {
+    throw apiError('INVALID', "확인 문구가 맞지 않습니다. '" + TEMPLATE_CONFIRM_WORD + "'를 그대로 입력해 주세요.");
+  }
+  return withScriptLock(function () {
+    clearAllRows();
+    var props = PropertiesService.getScriptProperties();
+    props.deleteProperty(OWNER_PROP);
+    props.deleteProperty(CLOSED_PROP);
+    props.setProperty(TEMPLATE_PROP, String(SpreadsheetApp.getActive().getId()));
+    return true;
+  });
+}
+
 // Empties every table (headers stay) and makes this spreadsheet the owner.
 // Only for a detected copy of a sheet in use, so the live sheet cannot be wiped.
 function sheetStartFresh() {
@@ -123,14 +156,8 @@ function sheetStartFresh() {
     if (sheetOwnerState() !== 'copied') {
       throw apiError('INVALID', '운영 중인 시트의 사본에서만 쓸 수 있습니다. 이 시트는 사본이 아니라서 기록을 지우지 않았습니다.');
     }
-    var ss = SpreadsheetApp.getActive();
-    Object.keys(TABLES)
-      .concat(['AuditLog'])
-      .forEach(function (name) {
-        var sheet = ss.getSheetByName(name);
-        if (sheet && sheet.getLastRow() > 1) sheet.deleteRows(2, sheet.getLastRow() - 1);
-      });
-    var id = String(ss.getId());
+    clearAllRows();
+    var id = String(SpreadsheetApp.getActive().getId());
     var props = PropertiesService.getScriptProperties();
     props.setProperty(OWNER_PROP, id);
     props.deleteProperty(CLOSED_PROP);
@@ -174,6 +201,8 @@ function onOpen() {
     .addSeparator()
     .addItem('운영 종료 (이 시트 잠그기)', 'menuCloseSheet')
     .addItem('운영 종료 풀기', 'menuReopenSheet')
+    .addSeparator()
+    .addItem('배포용 원본으로 초기화', 'menuMakeTemplate')
     .addSeparator()
     .addItem('사용 가이드', 'menuGuide')
     .addToUi();
@@ -281,6 +310,35 @@ function menuContinueCopy() {
   try {
     sheetContinueCopy();
     ui.alert('이 사본을 학교 시트로 삼았습니다. 웹 앱을 새로 배포하고 새 접속 링크를 보내 주세요.');
+  } catch (err) {
+    ui.alert(err.message);
+  }
+}
+
+function menuMakeTemplate() {
+  var ui = SpreadsheetApp.getUi();
+  if (isTemplateSheet()) {
+    ui.alert('이미 배포용 원본입니다. 공유 → 링크가 있는 모든 사용자(뷰어)로 두고 /copy 링크를 나눠 주세요.');
+    return;
+  }
+  var res = ui.prompt(
+    '배포용 원본으로 초기화',
+    '이 시트를 다른 학교에 나눠 줄 빈 원본으로 만듭니다.\n' +
+      '- 계정, 학교 정보, 교실·보관장, 변경 이력 등 모든 기록을 지웁니다. 되돌릴 수 없습니다.\n' +
+      '- 이후 이 시트로는 웹 화면을 쓸 수 없습니다(사본에서만 씁니다).\n\n' +
+      "계속하려면 '" + TEMPLATE_CONFIRM_WORD + "'를 입력하세요.",
+    ui.ButtonSet.OK_CANCEL,
+  );
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  try {
+    sheetMakeTemplate(res.getResponseText());
+    ui.alert(
+      '배포용 원본으로 만들었습니다.\n\n' +
+        '1. Apps Script → 배포 → 배포 관리에서 이 시트의 웹 앱 배포를 보관(삭제)하세요.\n' +
+        '2. 공유 → 일반 액세스를 "링크가 있는 모든 사용자(뷰어)"로 바꾸세요.\n' +
+        '3. 주소의 /edit… 부분을 /copy로 바꾼 링크를 학교들에 나눠 주세요.\n' +
+        '우리 학교도 이 원본을 사본 만들기로 복사해서 씁니다.',
+    );
   } catch (err) {
     ui.alert(err.message);
   }

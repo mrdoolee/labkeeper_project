@@ -175,6 +175,15 @@ describe('connecting the school spreadsheet', () => {
     expect(await screen.findByRole('heading', { name: '스프레드시트 연결' })).toBeInTheDocument()
   })
 
+  test('the distribution template cannot be used and says to use a copy', async () => {
+    serve({ 'system.info': { ...READY, template: true, needsSetup: true, schoolName: '', managerName: '' } })
+    renderApp()
+    expect(await screen.findByRole('heading', { name: '배포용 원본 시트입니다' })).toBeInTheDocument()
+    expect(screen.getByText(/사본 만들기/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: '주소 바꾸기' }))
+    expect(await screen.findByRole('heading', { name: '스프레드시트 연결' })).toBeInTheDocument()
+  })
+
   test('a closed sheet shows the closing note and a way to another address', async () => {
     serve({ 'system.info': { ...READY, closed: true, closedNote: '새 접속 링크는 운영 교사에게 받으세요.' } })
     renderApp()
