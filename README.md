@@ -67,7 +67,7 @@
 - [x] 여러 학교 공용 구조: 스프레드시트 연결 화면, 시트 메뉴로 첫 계정, 접속 링크, 버전·사본 확인 (docs/superpowers/specs/2026-10-23-multi-school-connect-and-redesign-design.md)
 - [x] 화면 디자인 B: 아이콘 메뉴(접기), 파란 강조색, 교실 카드
 - [x] 학교 정보(학교명·관리 교사) 시트 입력 + 메뉴 아래 표시, 시트 옮기기(사본 계속 쓰기 + 운영 종료)
-- [ ] 실제 배포 확인: 원본 시트 만들기, 학교 시트 코드 업데이트, 공용 화면 연결 ([docs/setup-guide.md](docs/setup-guide.md))
+- [ ] 실제 배포 확인: 원본 시트 만들기([docs/maintainer-guide.md](docs/maintainer-guide.md)), 학교 시트 코드 업데이트·공용 화면 연결([docs/setup-guide.md](docs/setup-guide.md))
 - [ ] M2 시약과 대장
 - [ ] M3 폐수와 점검
 - [ ] M4 MSDS와 경고표지
@@ -75,7 +75,8 @@
 
 ## 설치와 개발
 
-- 설치(GAS 배포, Vercel 연결): [docs/setup-guide.md](docs/setup-guide.md)
+- 학교 운영 교사용 설치 안내: [docs/setup-guide.md](docs/setup-guide.md)
+- 배포 관리자 안내(원본 시트, 공용 화면, 새 버전 내보내기): [docs/maintainer-guide.md](docs/maintainer-guide.md)
 - 저장소 구성
   - `gas/`: Apps Script 서버 코드(`gas/src`)와 테스트. `npm test`, `npm run dev`(로컬 개발 서버)
   - `web/`: 화면(Vite + React + TypeScript). `npm test`, `npm run dev`, `npm run build`, `npm run e2e`(통합 시험)

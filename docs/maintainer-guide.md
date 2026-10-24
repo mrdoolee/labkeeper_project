@@ -1,0 +1,52 @@
+# LabKeeper 배포 관리자 안내
+
+LabKeeper를 **배포하고 관리하는 사람**(이 저장소 주인)만 보는 문서입니다. 학교 운영 교사는 이 문서를 볼 필요가 없고, [설치 안내(학교 운영 교사용)](setup-guide.md)만 따라 하면 됩니다.
+
+배포 관리자가 하는 일은 세 가지입니다.
+
+| 할 일 | 언제 | 상태 |
+|---|---|---|
+| 공용 화면(Vercel) 운영 | 처음 한 번 | 완료 — https://labkeeper-trdooleel.vercel.app/ |
+| 원본 시트 만들고 공유 | 처음 한 번 | **해야 함** |
+| 새 버전 내보내기 | 코드를 바꿀 때마다 | 필요할 때 |
+
+## 1. 원본 시트 만들기 (처음 한 번)
+
+다른 학교들이 "사본 만들기"로 복사해 갈 **빈 시트**입니다. 학교들은 이 원본의 사본에서 각자 웹 앱을 배포합니다.
+
+1. 구글 드라이브에서 새 스프레드시트를 만들고 이름을 `LabKeeper 원본`으로 합니다.
+2. **확장 프로그램 → Apps Script**를 엽니다.
+3. 기본 파일 `Code.gs`의 내용을 모두 지우고, 파일 이름을 `LabKeeper`로 바꿉니다(파일 옆 ⋮ → 이름 바꾸기).
+4. [`gas/dist/LabKeeper.gs`](https://github.com/mrdoolee/labkeeper_project/blob/main/gas/dist/LabKeeper.gs)를 열고 오른쪽 위 **복사** 버튼으로 전체를 복사해 붙여 넣고 **저장**합니다.
+5. (권장) 왼쪽 톱니바퀴 **프로젝트 설정**에서 **시간대**를 `(GMT+09:00) 서울`로 바꿉니다. 사본에도 그대로 따라갑니다.
+6. 원본은 **빈 상태로 둡니다.** 원본에서는 웹 앱 배포, 계정 만들기, 학교 정보 입력을 하지 마세요. 원본에 들어간 내용은 모든 학교의 사본에 그대로 복사됩니다.
+7. 오른쪽 위 **공유 → 일반 액세스**를 **링크가 있는 모든 사용자 (뷰어)** 로 바꿉니다.
+8. 시트 주소에서 `/edit` 뒤를 지우고 `/copy`로 바꿉니다.
+   - 예: `https://docs.google.com/spreadsheets/d/1AbC…xyz/edit#gid=0` → `https://docs.google.com/spreadsheets/d/1AbC…xyz/copy`
+9. 이 링크를 [설치 안내](setup-guide.md) 1단계의 `<원본 사본 링크>` 자리에 적습니다(또는 Claude에게 링크를 주고 넣어 달라고 합니다).
+
+## 2. 공용 화면 (Vercel) — 이미 완료
+
+지금 설정(바꾸지 않아도 됨):
+
+- Vercel 프로젝트 `labkeeper-trdoolee`, 팀 DooLee, 이 저장소의 `main` 브랜치와 연결
+- **Root Directory**: `web`, Framework: Vite, 환경 변수 없음
+- 주소: https://labkeeper-trdooleel.vercel.app/
+
+지켜야 할 것:
+
+- **주소를 바꾸지 마세요.** 학교들이 나눠 가진 접속 링크(`…vercel.app/?gas=…`)에 이 주소가 들어 있습니다. 바꾸면 모든 학교의 링크가 끊깁니다.
+- Settings → Deployment Protection의 **Vercel Authentication**이 프로덕션 주소에 걸리지 않게 둡니다. 걸리면 선생님들이 Vercel 로그인 화면에 막힙니다.
+- 옛 설정에 남은 환경 변수 `VITE_GAS_URL`은 쓰이지 않습니다. 지워도 됩니다.
+
+## 3. 새 버전 내보내기 (코드를 바꿀 때마다)
+
+화면은 하나라서 `main`에 올리면 모든 학교에 바로 바뀝니다. 하지만 GAS 코드는 학교마다 따로 붙어 있어서 각 학교가 직접 업데이트해야 합니다.
+
+1. GAS 코드(`gas/src`)를 바꿨다면 `cd gas && npm run bundle`로 `gas/dist/LabKeeper.gs`를 다시 만듭니다. (Claude가 작업하면 자동으로 합니다.)
+2. 화면이 GAS의 새 기능을 쓰게 되면 `gas/src/System.js`의 `API_VERSION`과 `web/src/api/system.ts`의 `REQUIRED_API_VERSION`을 함께 올립니다. 그러면 옛 코드의 학교에는 화면이 "옛 버전입니다, 다시 배포해 주세요"라고 안내합니다.
+3. `main`에 올리면 공용 화면이 자동으로 배포됩니다.
+4. **원본 시트**의 Apps Script도 새 `LabKeeper.gs`로 바꿔 둡니다. 새로 시작하는 학교가 처음부터 새 코드를 받게 하기 위해서입니다.
+5. 이미 쓰는 학교에는 "설치 안내 7. 코드 업데이트"를 하라고 알립니다.
+
+> 버전을 올리면, 학교들이 업데이트하기 전까지 그 학교 화면이 멈춥니다. 꼭 필요할 때만 올리고, 학교들에 미리 알리세요.
