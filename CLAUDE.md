@@ -48,11 +48,14 @@
 
 ## 개발 명령
 
+- 작업 환경: 선생님 PC(로컬, Windows 가능)로 옮겼다. 준비 방법과 진행 현황은 docs/project-status.md. Node 22 LTS 이상, 세션 시작 훅(`.claude/hooks/install-deps.mjs`)이 gas/·web/ 패키지를 설치한다. 훅·스크립트는 Windows에서도 돌도록 Node로 쓴다(bash·python 전용 금지).
+
 - GAS 테스트: `cd gas && npm test` (gas/src를 node:vm과 가짜 구글 서비스로 실행. gas/test/fakes.js는 시트의 입력 해석을 흉내 낸다)
-- 로컬 GAS 서버: `cd gas && npm run dev` (http://127.0.0.1:8787, 메모리 저장)
+- 로컬 GAS 서버: `cd gas && npm run dev` (http://127.0.0.1:8787, 메모리 저장). 학교 정보·첫 계정 채우기: `cd gas && npm run dev:admin` (kim / first-pass-1)
 - 화면 테스트: `cd web && npm test`, 타입 검사 `npx tsc -b`, 빌드 `npm run build`
 - 학교용 GAS 한 파일: `cd gas && npm run bundle` → `gas/dist/LabKeeper.gs` (gas/src를 바꾸면 다시 만든다. GAS 테스트가 최신인지 확인한다)
-- 통합 시험: `cd web && npm run e2e` (두 서버를 자동 실행, 연결 화면에 로컬 GAS 주소를 넣고 `/__dev/createAdmin`으로 첫 계정을 만든다. 설치된 Chromium 사용, 스크린샷은 docs/screenshots/m1/)
+- 통합 시험: `cd web && npm run e2e` (두 서버를 자동 실행, 연결 화면에 로컬 GAS 주소를 넣고 `/__dev/createAdmin`으로 첫 계정을 만든다. 스크린샷은 docs/screenshots/m1/). 브라우저는 PW_CHROMIUM → 클라우드의 /opt/pw-browsers Chromium → Playwright 기본 순서로 고른다. PC에서는 처음 한 번 `npx playwright install chromium`.
+- 린트: `cd web && npm run lint` (oxlint)
 - 로컬 개발: 개발 빌드에서만 연결 화면이 `http://127.0.0.1:8787/` 같은 로컬 주소를 받는다.
 - GAS 코드는 모듈 없는 전역 함수(V8). 파일 로드 순서가 보장되지 않으므로 최상위에서는 정의만 하고, 액션은 Code.js의 registerActions()에서 모은다.
 - 보관 분류·보관장 종류 id는 gas/src/Schema.js와 web/src/domain/storage.ts 두 곳에 있다. 바꿀 때 함께 바꾼다(GAS 테스트가 목록을 확인한다).

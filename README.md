@@ -78,6 +78,7 @@
 
 ## 설치와 개발
 
+- **작업 현황과 로컬 개발 환경 준비: [docs/project-status.md](docs/project-status.md)**
 - 학교 운영 교사용 설치 안내: [docs/setup-guide.md](docs/setup-guide.md)
 - 배포 관리자 안내(원본 시트, 공용 화면, 새 버전 내보내기): [docs/maintainer-guide.md](docs/maintainer-guide.md)
 - 저장소 구성

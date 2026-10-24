@@ -17,78 +17,14 @@
 
 ## 세션 시작 훅
 
-superpowers와 ponytail은 원래 세션이 시작될 때 규칙을 자동으로 넣는 훅이 있다.
-플러그인 훅 대신 아래 두 파일(저장소에 포함됨)이 같은 일을 한다. 세션이 시작될 때 using-superpowers 안내와 ponytail 규칙(full 단계)을 넣는다.
+`.claude/settings.json`에 SessionStart 훅 두 개가 있다. 둘 다 Node로 실행해서 Windows·macOS·Linux PC와 클라우드 세션에서 똑같이 돈다(Python이 필요 없음).
 
-`.claude/hooks/session-start.py`
+| 파일 | 하는 일 |
+|---|---|
+| `.claude/hooks/session-start.mjs` | 세션 시작·초기화·압축 때 using-superpowers 안내와 ponytail 규칙(full 단계)을 넣는다. 플러그인 훅을 대신한다 |
+| `.claude/hooks/install-deps.mjs` | `gas/`, `web/`에 npm 패키지가 없거나 `package-lock.json`이 바뀌었으면 `npm install`을 한다. 평소에는 바로 끝난다 |
 
-```python
-#!/usr/bin/env python3
-"""SessionStart hook: inject the superpowers intro and ponytail rules."""
-import json
-import os
-import re
-
-skills = os.path.join(os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()), ".claude", "skills")
-
-
-def body(name):
-    try:
-        with open(os.path.join(skills, name, "SKILL.md"), encoding="utf-8") as f:
-            return re.sub(r"^---.*?---\s*", "", f.read(), count=1, flags=re.S)
-    except OSError:
-        return ""
-
-
-parts = []
-
-superpowers = body("using-superpowers")
-if superpowers:
-    parts.append(
-        "<EXTREMELY_IMPORTANT>\nYou have superpowers.\n\n"
-        "**Below is the full content of your 'using-superpowers' skill - your introduction "
-        "to using skills. For all other skills, use the 'Skill' tool:**\n\n"
-        + superpowers + "\n</EXTREMELY_IMPORTANT>"
-    )
-
-ponytail = body("ponytail")
-if ponytail:
-    # Keep only the default "full" row of the level table, like the plugin does.
-    ponytail = "\n".join(
-        line for line in ponytail.splitlines()
-        if not re.match(r"^\|\s*\*\*(lite|ultra)\*\*\s*\|", line)
-    )
-    parts.append("PONYTAIL MODE ACTIVE — level: full\n\n" + ponytail)
-
-if parts:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "SessionStart",
-            "additionalContext": "\n\n".join(parts),
-        }
-    }, ensure_ascii=False))
-```
-
-`.claude/settings.json`
-
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      {
-        "matcher": "startup|clear|compact",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-start.py\"",
-            "timeout": 15
-          }
-        ]
-      }
-    ]
-  }
-}
-```
+훅을 바꾼 뒤에는 직접 실행해 확인한다: `node .claude/hooks/session-start.mjs`, `node .claude/hooks/install-deps.mjs`
 
 ## 업데이트 방법
 

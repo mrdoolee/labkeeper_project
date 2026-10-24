@@ -1,13 +1,17 @@
+import fs from 'node:fs'
 import { defineConfig } from '@playwright/test'
 
 // Runs the web app against the local GAS dev server (in-memory data).
-// Uses the Chromium already installed in this environment; nothing is downloaded.
+// Browser: PW_CHROMIUM if set, else the cloud container's Chromium if present,
+// else Playwright's own (on a PC run "npx playwright install chromium" once).
+const CLOUD_CHROMIUM = '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'
+const executablePath = process.env.PW_CHROMIUM ?? (fs.existsSync(CLOUD_CHROMIUM) ? CLOUD_CHROMIUM : undefined)
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
   use: {
     baseURL: 'http://127.0.0.1:5173',
-    launchOptions: { executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' },
+    launchOptions: { executablePath },
     locale: 'ko-KR',
     timezoneId: 'Asia/Seoul',
     viewport: { width: 1366, height: 860 },
