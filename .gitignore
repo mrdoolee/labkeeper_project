@@ -7,3 +7,5 @@ test-results/
 playwright-report/
 !gas/dist/
 gas/.clasp.json
+reference/
+.superpowers/
