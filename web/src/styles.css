@@ -799,3 +799,20 @@ a.button.primary:hover {
 .tx-table td.actions button + button {
   margin-left: 4px;
 }
+
+.import-steps li {
+  margin: var(--space) 0;
+}
+
+.import-table {
+  width: 100%;
+}
+
+.import-table tr.row-error td {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.import-table tr.row-skip td {
+  color: var(--color-muted);
+}
