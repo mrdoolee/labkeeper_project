@@ -1815,13 +1815,50 @@ function recordsUpdate(payload, user) {
   return dbUpdate(table, payload.id, validateRecord(table, copyOf(payload.changes), false, {}), user);
 }
 
+// Names of live reagents stored inside the given Zones, Cabinets or Rooms.
+function reagentsInPlaces(table, ids) {
+  var wanted = {};
+  ids.forEach(function (id) {
+    wanted[id] = true;
+  });
+  var cabinetIds = {};
+  if (table === 'Cabinets') cabinetIds = wanted;
+  if (table === 'Rooms') {
+    dbList('Cabinets', { includeDeleted: true }).forEach(function (c) {
+      if (wanted[c.roomId]) cabinetIds[c.id] = true;
+    });
+  }
+  var zoneIds = table === 'Zones' ? wanted : {};
+  if (table !== 'Zones') {
+    dbList('Zones', { includeDeleted: true }).forEach(function (z) {
+      if (cabinetIds[z.cabinetId]) zoneIds[z.id] = true;
+    });
+  }
+  return dbList('Reagents')
+    .filter(function (r) {
+      return r.zoneId && zoneIds[r.zoneId];
+    })
+    .map(function (r) {
+      return r.name + (r.concentration === null ? '' : ' ' + r.concentration + '%');
+    });
+}
+
+function checkNoReagentsIn(table, ids) {
+  if (['Zones', 'Cabinets', 'Rooms'].indexOf(table) < 0) return;
+  var names = reagentsInPlaces(table, ids);
+  if (names.length) throw invalid('이 안에 시약이 있습니다: ' + names.join(', ') + '. 먼저 시약의 보관 위치를 옮겨 주세요.');
+}
+
 function recordsDelete(payload, user) {
-  return dbSoftDelete(recordTable(payload.table), payload.id, user);
+  var table = recordTable(payload.table);
+  checkNoReagentsIn(table, [payload.id]);
+  return dbSoftDelete(table, payload.id, user);
 }
 
 function recordsDeleteMany(payload, user) {
   var table = recordTable(payload.table);
   if (!Array.isArray(payload.ids)) throw invalid('ids 값이 올바르지 않습니다.');
+  checkNoReagentsIn(table, payload.ids);
   return payload.ids.map(function (id) {
     return dbSoftDelete(table, id, user);
   });

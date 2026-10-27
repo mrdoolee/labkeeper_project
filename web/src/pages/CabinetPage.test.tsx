@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, test, vi } from 'vitest'
-import { callApi } from '../api/client'
+import { ApiError, callApi } from '../api/client'
 import { createFakeApi } from '../test/fakeApi'
 import CabinetPage from './CabinetPage'
 import RoomPage from './RoomPage'
@@ -138,6 +138,33 @@ describe('CabinetPage', () => {
     expect(fake.called('records.delete')).toHaveLength(0)
     expect(fake.called('records.update')[0]).toMatchObject({ table: 'Cabinets', id: 'c1', changes: { rows: 2 } })
     expect(await screen.findAllByRole('gridcell')).toHaveLength(4)
+  })
+
+  test('shrinking removes zones first; if a zone holds reagents nothing else changes', async () => {
+    vi.mocked(callApi).mockImplementation(((action: string, payload?: object) =>
+      action === 'records.deleteMany'
+        ? Promise.reject(new ApiError('INVALID', '이 안에 시약이 있습니다: 염화 수소(염산) 35%. 먼저 시약의 보관 위치를 옮겨 주세요.'))
+        : fake.handle(action, payload)) as typeof callApi)
+    renderAt('/cabinets/c1')
+    await screen.findAllByRole('gridcell')
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await userEvent.clear(screen.getByLabelText('단 수'))
+    await userEvent.type(screen.getByLabelText('단 수'), '2')
+    await userEvent.click(screen.getByRole('button', { name: '보관장 저장' }))
+    expect(await screen.findByText(/먼저 시약의 보관 위치를 옮겨 주세요/)).toBeInTheDocument()
+    expect(fake.called('records.update')).toHaveLength(0)
+  })
+
+  test('a successful shrink removes zones, then saves the cabinet', async () => {
+    renderAt('/cabinets/c1')
+    await screen.findAllByRole('gridcell')
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    await userEvent.clear(screen.getByLabelText('단 수'))
+    await userEvent.type(screen.getByLabelText('단 수'), '2')
+    await userEvent.click(screen.getByRole('button', { name: '보관장 저장' }))
+    await screen.findAllByRole('gridcell')
+    const order = fake.calls.map((c) => c.action).filter((a) => a === 'records.deleteMany' || a === 'records.update')
+    expect(order).toEqual(['records.deleteMany', 'records.update'])
   })
 
   test('cancelling the shrink changes nothing', async () => {

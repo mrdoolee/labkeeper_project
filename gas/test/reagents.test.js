@@ -283,3 +283,34 @@ describe('reagentTx: in and out records', () => {
     expect(recent).toEqual(['실험 3', '실험 10', '실험 9', '실험 8', '실험 7', '실험 6', '실험 5', '실험 4'])
   })
 })
+
+describe('places that hold reagents cannot be deleted', () => {
+  let roomId, cabinetId, zones
+  beforeEach(() => {
+    roomId = call('records.create', { table: 'Rooms', values: { name: '제1과학실', isLab: true } }).data.id
+    cabinetId = call('records.create', { table: 'Cabinets', values: { roomId, name: 'A 시약장', type: 'sealed', locked: true, rows: 1, cols: 2 } }).data.id
+    zones = call('records.createMany', { table: 'Zones', rows: [{ cabinetId, row: 1, col: 1 }, { cabinetId, row: 1, col: 2 }] }).data
+    register({ zoneId: zones[0].id })
+  })
+
+  function expectBlocked(res) {
+    expect(res.error.code).toBe('INVALID')
+    expect(res.error.message).toContain('염화 수소(염산) 35%')
+    expect(res.error.message).toContain('먼저 시약의 보관 위치를 옮겨 주세요')
+  }
+
+  test('the zone, the cabinet and the room are protected', () => {
+    expectBlocked(call('records.delete', { table: 'Zones', id: zones[0].id }))
+    expectBlocked(call('records.deleteMany', { table: 'Zones', ids: [zones[1].id, zones[0].id] }))
+    expectBlocked(call('records.delete', { table: 'Cabinets', id: cabinetId }))
+    expectBlocked(call('records.delete', { table: 'Rooms', id: roomId }))
+    expect(gas.rows('Zones').every((z) => z.deleted === false)).toBe(true)
+  })
+
+  test('an empty zone can still be deleted, and so can a place whose reagent was deleted', () => {
+    expect(call('records.delete', { table: 'Zones', id: zones[1].id }).ok).toBe(true)
+    const r = call('reagents.list', {}).data[0]
+    call('reagents.delete', { id: r.id })
+    expect(call('records.delete', { table: 'Rooms', id: roomId }).ok).toBe(true)
+  })
+})

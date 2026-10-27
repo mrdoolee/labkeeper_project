@@ -103,9 +103,11 @@ export default function CabinetPage() {
     }
     const changes = Object.fromEntries(Object.entries(form).filter(([k, v]) => cabinet[k as keyof CabinetForm] !== v))
     await run(async () => {
+      // Zones go first: the server refuses to remove a zone that holds reagents,
+      // and then the cabinet must stay as it was.
+      if (plan.remove.length) await records.removeMany('Zones', plan.remove)
       if (Object.keys(changes).length) await records.update('Cabinets', cabinet.id, changes)
       if (plan.create.length) await records.createMany('Zones', plan.create as unknown as Record<string, unknown>[])
-      if (plan.remove.length) await records.removeMany('Zones', plan.remove)
       if (selected && plan.remove.includes(selected)) setSelected(null)
       await load()
     })
