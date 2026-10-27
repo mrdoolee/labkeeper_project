@@ -170,8 +170,11 @@ function auditList(payload) {
   if (!payload.table) groups = Object.keys(HISTORY_TABS);
   else if (payload.table === 'Users') groups = ['users', 'access'];
   else groups = [historyGroupFor(payload.table, '')];
+  // A reagent's history also shows changes to its in/out records.
+  var txIds = payload.table === 'Reagents' && payload.recordId ? reagentTxIds(payload.recordId) : null;
   return historyEntries(groups)
     .filter(function (a) {
+      if (txIds && a.table === 'ReagentTx') return txIds[a.recordId] === true;
       return (!payload.table || a.table === payload.table) && (!payload.recordId || a.recordId === payload.recordId);
     })
     .reverse()
@@ -189,4 +192,13 @@ function auditList(payload) {
         after: a.after ? JSON.parse(a.after) : null,
       };
     });
+}
+
+// Ids of all the reagent's in/out records, deleted ones included.
+function reagentTxIds(reagentId) {
+  var ids = {};
+  dbList('ReagentTx', { where: { reagentId: reagentId }, includeDeleted: true }).forEach(function (t) {
+    ids[t.id] = true;
+  });
+  return ids;
 }

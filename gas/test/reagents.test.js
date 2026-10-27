@@ -143,3 +143,143 @@ describe('reagents.createMany', () => {
     expect(gas.rows('ReagentTx')).toHaveLength(3)
   })
 })
+
+describe('reagentTx: in and out records', () => {
+  let r
+  beforeEach(() => {
+    r = register().data // 500 mL on 2026-03-01
+  })
+
+  function out(amount, extra = {}) {
+    return call('reagentTx.create', { reagentId: r.id, date: '2026-03-02', kind: 'out', amount, purpose: '2학년 중화 반응 실험', ...extra })
+  }
+
+  test('a use lowers the stock and is stored with who wrote it', () => {
+    const res = out(50)
+    expect(res.ok).toBe(true)
+    expect(res.data.stock).toBe(450)
+    expect(res.data.tx).toMatchObject({ kind: 'out', amount: 50, reagentId: r.id, date: '2026-03-02' })
+    expect(gas.rows('ReagentTx').at(-1)).toMatchObject({ kind: '출고', reagentName: '염화 수소(염산)', createdByName: '이교사' })
+    expect(call('reagents.list', {}).data[0].stock).toBe(450)
+  })
+
+  test('using more than is left is refused', () => {
+    const res = out(600)
+    expect(res.error.code).toBe('INVALID')
+    expect(res.error.message).toBe('남은 양(500 mL)보다 많습니다.')
+  })
+
+  test('a use needs a purpose; a delivery does not, and only a delivery has a price', () => {
+    expect(out(10, { purpose: ' ' }).error.code).toBe('INVALID')
+    expect(call('reagentTx.create', { reagentId: r.id, date: '2026-03-02', kind: 'in', amount: 100, purpose: '', price: 25000 }).data.stock).toBe(600)
+    expect(out(10, { price: 100 }).error.code).toBe('INVALID')
+  })
+
+  test('dates must be real, not in the future and not before the initial stock', () => {
+    expect(out(10, { date: '2026-03-03' }).error.code).toBe('INVALID')
+    expect(out(10, { date: '2026-02-28' }).error.code).toBe('INVALID')
+    expect(out(10, { date: '2026-02-30' }).error.code).toBe('INVALID')
+  })
+
+  test('only in and out can be written; amounts must be positive', () => {
+    expect(out(10, { kind: 'initial' }).error.code).toBe('INVALID')
+    expect(out(0).error.code).toBe('INVALID')
+    expect(out(-5).error.code).toBe('INVALID')
+  })
+
+  test('a back-dated record that would make a later balance negative is refused', () => {
+    const small = register({ concentration: 9 }, 100).data
+    call('reagentTx.create', { reagentId: small.id, date: '2026-03-02', kind: 'out', amount: 80, purpose: '실험' })
+    const res = call('reagentTx.create', { reagentId: small.id, date: '2026-03-01', kind: 'out', amount: 30, purpose: '실험' })
+    expect(res.error.code).toBe('INVALID')
+    expect(res.error.message).toContain('2026-03-02')
+  })
+
+  test('editing, deleting and restoring a record recompute the stock', () => {
+    const tx = out(80).data.tx
+    expect(call('reagentTx.update', { id: tx.id, changes: { amount: 90 } }).data.stock).toBe(410)
+    expect(call('reagentTx.delete', { id: tx.id }).data.stock).toBe(500)
+    expect(call('reagentTx.restore', { id: tx.id }).data.stock).toBe(410)
+  })
+
+  test('an edit or restore that would go negative is refused', () => {
+    const tx = out(80).data.tx
+    expect(call('reagentTx.update', { id: tx.id, changes: { amount: 501 } }).error.code).toBe('INVALID')
+    call('reagentTx.delete', { id: tx.id })
+    out(450)
+    expect(call('reagentTx.restore', { id: tx.id }).error.code).toBe('INVALID')
+  })
+
+  test('the initial stock can be corrected but not removed or turned into a use', () => {
+    const initial = call('reagentTx.list', { reagentId: r.id }).data[0]
+    expect(initial.kind).toBe('initial')
+    expect(call('reagentTx.update', { id: initial.id, changes: { amount: 200 } }).data.stock).toBe(200)
+    expect(call('reagentTx.update', { id: initial.id, changes: { kind: 'out' } }).error.code).toBe('INVALID')
+    expect(call('reagentTx.delete', { id: initial.id }).error.code).toBe('INVALID')
+  })
+
+  test('the initial date cannot move after a later record', () => {
+    out(10)
+    const initial = call('reagentTx.list', { reagentId: r.id }).data[0]
+    expect(call('reagentTx.update', { id: initial.id, changes: { date: '2026-03-02' } }).ok).toBe(true)
+    const other = register({ concentration: 1 }, 10, '2026-03-01').data
+    call('reagentTx.create', { reagentId: other.id, date: '2026-03-01', kind: 'out', amount: 1, purpose: '실험' })
+    const init2 = call('reagentTx.list', { reagentId: other.id }).data.find((t) => t.kind === 'initial')
+    expect(call('reagentTx.update', { id: init2.id, changes: { date: '2026-03-02' } }).error.code).toBe('INVALID')
+  })
+
+  test('decimal amounts add up cleanly', () => {
+    const g = register({ name: '황산 구리(Ⅱ)', concentration: null, casNo: '7758-99-8', unit: 'g' }, 0).data
+    call('reagentTx.create', { reagentId: g.id, date: '2026-03-02', kind: 'in', amount: 0.1, purpose: '' })
+    expect(call('reagentTx.create', { reagentId: g.id, date: '2026-03-02', kind: 'in', amount: 0.2, purpose: '' }).data.stock).toBe(0.3)
+  })
+
+  test('a use makes one history entry; the stock update is not logged separately', () => {
+    const before = gas.sheet('시약 이력').length
+    out(10)
+    expect(gas.sheet('시약 이력').length).toBe(before + 1)
+  })
+
+  test('the reagent history includes its records', () => {
+    out(10)
+    const entries = call('audit.list', { table: 'Reagents', recordId: r.id }).data
+    expect(entries.map((e) => [e.table, e.action])).toEqual([
+      ['ReagentTx', 'create'],
+      ['ReagentTx', 'create'],
+      ['Reagents', 'create'],
+    ])
+  })
+
+  test('the reagent history also shows edits and deletes of its records', () => {
+    const tx = out(10).data.tx
+    call('reagentTx.update', { id: tx.id, changes: { amount: 20 } })
+    call('reagentTx.delete', { id: tx.id })
+    const entries = call('audit.list', { table: 'Reagents', recordId: r.id }).data
+    expect(entries.slice(0, 2).map((e) => [e.table, e.action])).toEqual([
+      ['ReagentTx', 'delete'],
+      ['ReagentTx', 'update'],
+    ])
+  })
+
+  test('records of a deleted reagent cannot be added', () => {
+    call('reagents.delete', { id: r.id })
+    expect(out(10).error.code).toBe('NOT_FOUND')
+  })
+
+  test('list by date range across reagents, deleted records only on request', () => {
+    const other = register({ concentration: 9 }, 100).data
+    const tx = out(10).data.tx
+    call('reagentTx.delete', { id: tx.id })
+    expect(call('reagentTx.list', { from: '2026-03-01', to: '2026-03-01' }).data).toHaveLength(2)
+    expect(call('reagentTx.list', { reagentId: r.id }).data).toHaveLength(1)
+    expect(call('reagentTx.list', { reagentId: r.id, includeDeleted: true }).data).toHaveLength(2)
+    expect(other.id).toBeTruthy()
+  })
+
+  test('recent purposes: unique, newest first, at most 8', () => {
+    for (let i = 1; i <= 10; i++) out(1, { purpose: `실험 ${i}` })
+    out(1, { purpose: '실험 3' })
+    const recent = call('reagentTx.recentPurposes', {}).data
+    expect(recent).toEqual(['실험 3', '실험 10', '실험 9', '실험 8', '실험 7', '실험 6', '실험 5', '실험 4'])
+  })
+})

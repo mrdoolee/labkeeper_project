@@ -158,7 +158,7 @@ function authChangePassword(payload, user) {
 var ACTIONS = {};
 
 function registerActions() {
-  var groups = [systemActions(), authActions(), usersActions(), settingsActions(), recordsActions(), reagentsActions()];
+  var groups = [systemActions(), authActions(), usersActions(), settingsActions(), recordsActions(), reagentsActions(), reagentTxActions()];
   groups.forEach(function (group) {
     Object.keys(group).forEach(function (name) {
       if (!ACTIONS[name]) ACTIONS[name] = group[name];
@@ -1468,6 +1468,205 @@ function reagentsRestore(payload, user) {
   return dbRestore('Reagents', r.id, user);
 }
 
+// ---- in/out records ----
+
+function reagentTxActions() {
+  return {
+    'reagentTx.list': { auth: 'user', write: false, handler: reagentTxList },
+    'reagentTx.create': { auth: 'user', write: true, handler: reagentTxCreate },
+    'reagentTx.update': { auth: 'user', write: true, handler: reagentTxUpdate },
+    'reagentTx.delete': { auth: 'user', write: true, handler: reagentTxDelete },
+    'reagentTx.restore': { auth: 'user', write: true, handler: reagentTxRestore },
+    'reagentTx.recentPurposes': { auth: 'user', write: false, handler: reagentTxRecentPurposes },
+  };
+}
+
+function txKindKey(label) {
+  for (var key in TX_KIND_LABELS) {
+    if (TX_KIND_LABELS[key] === label || key === label) return key;
+  }
+  return label;
+}
+
+// Sheet row → API row (kind as initial/in/out).
+function txOut(row) {
+  var out = Object.assign({}, row);
+  out.kind = txKindKey(row.kind);
+  return out;
+}
+
+// Same order and arithmetic as runningBalances in web/src/domain/ledger.ts.
+function txBalances(rows) {
+  var live = rows.filter(function (t) {
+    return !t.deleted;
+  });
+  live.sort(function (a, b) {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    var ai = a.kind === 'initial' ? 1 : 0;
+    var bi = b.kind === 'initial' ? 1 : 0;
+    if (ai !== bi) return bi - ai;
+    var at = Date.parse(a.createdAt) - Date.parse(b.createdAt);
+    if (at) return at;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+  var balance = 0;
+  return live.map(function (tx) {
+    var before = balance;
+    balance = round3(tx.kind === 'out' ? balance - tx.amount : balance + tx.amount);
+    return { tx: tx, before: before, after: balance };
+  });
+}
+
+// Checks a reagent's records after a change and returns the new stock.
+// newId: the record being added, for the "more than is left" message.
+function checkedStock(reagent, rows, newId) {
+  var initial = rows.filter(function (t) {
+    return t.kind === 'initial' && !t.deleted;
+  })[0];
+  rows.forEach(function (t) {
+    if (!t.deleted && initial && t.kind !== 'initial' && t.date < initial.date) {
+      throw invalid('기준일(' + initial.date + ')보다 앞선 날짜의 기록은 둘 수 없습니다.');
+    }
+  });
+  var balances = txBalances(rows);
+  for (var i = 0; i < balances.length; i++) {
+    if (balances[i].after < 0) {
+      if (balances[i].tx.id === newId) throw invalid('남은 양(' + balances[i].before + ' ' + reagent.unit + ')보다 많습니다.');
+      throw invalid('이렇게 바꾸면 ' + balances[i].tx.date + '에 남은 양이 음수가 됩니다.');
+    }
+  }
+  return balances.length ? balances[balances.length - 1].after : 0;
+}
+
+function reagentTxRows(reagentId) {
+  return dbList('ReagentTx', { where: { reagentId: reagentId }, includeDeleted: true }).map(txOut);
+}
+
+function checkTxFields(values, kind, isCreate) {
+  if (isCreate || values.date !== undefined) {
+    checkDate(values, 'date', '일자', true);
+    if (values.date > todayKst()) throw invalid('일자는 오늘 이후일 수 없습니다.');
+  }
+  if (isCreate || values.amount !== undefined) {
+    var a = values.amount;
+    var ok = typeof a === 'number' && isFinite(a) && (kind === 'initial' ? a >= 0 : a > 0);
+    if (!ok) throw invalid(kind === 'initial' ? '기초 재고량은 0 이상이어야 합니다.' : '수량은 0보다 커야 합니다.');
+    values.amount = round3(a);
+  }
+  textOrEmpty(values, 'purpose');
+  textOrEmpty(values, 'note');
+  checkText(values, 'purpose', '용도', kind === 'out' && (isCreate || values.purpose !== undefined), 200);
+  checkText(values, 'note', '비고', false, 200);
+  if (values.price === null) values.price = '';
+  if (values.price !== undefined && values.price !== '') {
+    if (kind !== 'in') throw invalid('금액은 입고 기록에만 적을 수 있습니다.');
+    if (typeof values.price !== 'number' || !(values.price >= 0)) throw invalid('금액이 올바르지 않습니다.');
+  }
+}
+
+function saveStock(reagent, stock, user) {
+  if (reagent.stock !== stock) dbUpdate('Reagents', reagent.id, { stock: stock }, user, { skipAudit: true });
+}
+
+function reagentTxList(payload) {
+  return dbList('ReagentTx', { includeDeleted: !!payload.includeDeleted })
+    .map(txOut)
+    .filter(function (t) {
+      if (payload.reagentId && t.reagentId !== payload.reagentId) return false;
+      if (payload.from && t.date < payload.from) return false;
+      if (payload.to && t.date > payload.to) return false;
+      return true;
+    });
+}
+
+function reagentTxCreate(payload, user) {
+  var reagent = liveReagent(payload.reagentId);
+  var kind = payload.kind;
+  if (kind !== 'in' && kind !== 'out') throw invalid('구분은 입고 또는 출고만 적을 수 있습니다.');
+  var values = { date: payload.date, amount: payload.amount, purpose: payload.purpose, price: payload.price, note: payload.note };
+  checkTxFields(values, kind, true);
+  var draft = { id: '￿', kind: kind, date: values.date, amount: values.amount, createdAt: nowIso(), deleted: false };
+  var stock = checkedStock(reagent, reagentTxRows(reagent.id).concat([draft]), draft.id);
+  var tx = dbCreate(
+    'ReagentTx',
+    {
+      reagentId: reagent.id,
+      reagentName: reagent.name,
+      date: values.date,
+      kind: TX_KIND_LABELS[kind],
+      amount: values.amount,
+      purpose: values.purpose || '',
+      price: values.price === undefined ? '' : values.price,
+      note: values.note || '',
+    },
+    user,
+  );
+  saveStock(reagent, stock, user);
+  return { tx: txOut(tx), stock: stock };
+}
+
+function findTx(id) {
+  var row = dbGet('ReagentTx', id);
+  if (!row) throw apiError('NOT_FOUND', '기록을 찾을 수 없습니다.');
+  return txOut(row);
+}
+
+function reagentTxUpdate(payload, user) {
+  var current = findTx(payload.id);
+  if (current.deleted) throw apiError('NOT_FOUND', '삭제된 기록입니다.');
+  var reagent = liveReagent(current.reagentId);
+  var changes = copyOf(payload.changes);
+  var allowed = current.kind === 'initial' ? ['date', 'amount'] : ['date', 'amount', 'purpose', 'price', 'note'];
+  Object.keys(changes).forEach(function (key) {
+    if (allowed.indexOf(key) < 0) throw invalid(current.kind === 'initial' ? '기초 재고는 수량과 날짜만 고칠 수 있습니다.' : '고칠 수 없는 항목입니다: ' + key);
+  });
+  checkTxFields(changes, current.kind, false);
+  var rows = reagentTxRows(reagent.id).map(function (t) {
+    return t.id === current.id ? Object.assign({}, t, changes) : t;
+  });
+  var stock = checkedStock(reagent, rows, null);
+  var updated = dbUpdate('ReagentTx', current.id, changes, user);
+  saveStock(reagent, stock, user);
+  return { tx: txOut(updated), stock: stock };
+}
+
+function setTxDeleted(payload, user, deleted) {
+  var current = findTx(payload.id);
+  if (current.kind === 'initial') throw invalid('기초 재고 기록은 삭제할 수 없습니다. 수량을 고쳐 주세요.');
+  if (current.deleted === deleted) throw invalid(deleted ? '이미 삭제된 기록입니다.' : '삭제되지 않은 기록입니다.');
+  var reagent = liveReagent(current.reagentId);
+  var rows = reagentTxRows(reagent.id).map(function (t) {
+    return t.id === current.id ? Object.assign({}, t, { deleted: deleted }) : t;
+  });
+  var stock = checkedStock(reagent, rows, null);
+  var row = deleted ? dbSoftDelete('ReagentTx', current.id, user) : dbRestore('ReagentTx', current.id, user);
+  saveStock(reagent, stock, user);
+  return { tx: txOut(row), stock: stock };
+}
+
+function reagentTxDelete(payload, user) {
+  return setTxDeleted(payload, user, true);
+}
+
+function reagentTxRestore(payload, user) {
+  return setTxDeleted(payload, user, false);
+}
+
+// Up to 8 different purposes of recent uses, newest first (rows are appended in time order).
+function reagentTxRecentPurposes() {
+  var rows = dbList('ReagentTx').map(txOut);
+  var seen = {};
+  var out = [];
+  for (var i = rows.length - 1; i >= 0 && out.length < 8; i--) {
+    var p = rows[i].kind === 'out' ? String(rows[i].purpose).trim() : '';
+    if (p && !seen[p]) {
+      seen[p] = true;
+      out.push(p);
+    }
+  }
+  return out;
+}
+
 // ===== Records.js =====
 
 // Generic create/read/update/delete for the tables in RECORD_TABLES, with
@@ -1642,8 +1841,11 @@ function auditList(payload) {
   if (!payload.table) groups = Object.keys(HISTORY_TABS);
   else if (payload.table === 'Users') groups = ['users', 'access'];
   else groups = [historyGroupFor(payload.table, '')];
+  // A reagent's history also shows changes to its in/out records.
+  var txIds = payload.table === 'Reagents' && payload.recordId ? reagentTxIds(payload.recordId) : null;
   return historyEntries(groups)
     .filter(function (a) {
+      if (txIds && a.table === 'ReagentTx') return txIds[a.recordId] === true;
       return (!payload.table || a.table === payload.table) && (!payload.recordId || a.recordId === payload.recordId);
     })
     .reverse()
@@ -1661,6 +1863,15 @@ function auditList(payload) {
         after: a.after ? JSON.parse(a.after) : null,
       };
     });
+}
+
+// Ids of all the reagent's in/out records, deleted ones included.
+function reagentTxIds(reagentId) {
+  var ids = {};
+  dbList('ReagentTx', { where: { reagentId: reagentId }, includeDeleted: true }).forEach(function (t) {
+    ids[t.id] = true;
+  });
+  return ids;
 }
 
 // ===== Schema.js =====
