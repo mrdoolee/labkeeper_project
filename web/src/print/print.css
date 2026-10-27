@@ -1,0 +1,133 @@
+/* 화학약품 관리대장 인쇄 (A4). Screen shows the sheets as paper; print hides the app around them. */
+.ledger-sheets {
+  display: grid;
+  gap: 16px;
+  justify-content: center;
+}
+
+.sheet {
+  background: #fff;
+  color: #000;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-card);
+  padding: 14mm 12mm;
+  font: 10.5pt/1.35 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+}
+
+.sheet-portrait {
+  width: 210mm;
+  min-height: 297mm;
+}
+
+.sheet-landscape {
+  width: 297mm;
+  min-height: 210mm;
+  page: landscape;
+}
+
+.ledger-title {
+  text-align: center;
+  font-size: 17pt;
+  margin: 0 0 6mm;
+}
+
+.ledger-meta {
+  margin: 0 0 1.5mm;
+}
+
+.sheet table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.sheet th,
+.sheet td {
+  border: 1px solid #000;
+  padding: 1.2mm 1.5mm;
+  text-align: center;
+  height: 8.5mm;
+}
+
+.sheet th {
+  background: #e8eef7;
+  font-weight: 600;
+}
+
+.sheet td.left {
+  text-align: left;
+}
+
+.sheet .ledger-head {
+  margin-bottom: 5mm;
+}
+
+.sheet .hl {
+  background: #fff27a;
+  font-weight: 700;
+  padding: 0 1mm;
+}
+
+.seoul-head {
+  display: flex;
+  align-items: center;
+  gap: 8mm;
+}
+
+.seoul-label {
+  font-size: 18pt;
+  white-space: nowrap;
+}
+
+.ledger-notes {
+  margin-top: 3mm;
+  font-size: 9pt;
+}
+
+.ledger-notes p {
+  margin: 0.5mm 0;
+}
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@page landscape {
+  size: A4 landscape;
+  margin: 0;
+}
+
+@media print {
+  .sidebar,
+  .topbar,
+  .no-print {
+    display: none !important;
+  }
+
+  .shell,
+  .shell.nav-collapsed {
+    display: block;
+  }
+
+  body,
+  .main,
+  .content {
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+
+  .ledger-sheets {
+    display: block;
+  }
+
+  .sheet {
+    border: 0;
+    box-shadow: none;
+    break-after: page;
+  }
+
+  .sheet:last-child {
+    break-after: auto;
+  }
+}
