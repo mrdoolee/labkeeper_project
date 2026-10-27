@@ -49,7 +49,7 @@ export interface ParsedRow {
 
 /** Same rule as reagentKey in gas/src/Reagents.js. */
 export function duplicateKey(name: string, concentration: number | null): string {
-  return `${name.trim().toLowerCase()}|${concentration === null ? '' : String(concentration)}`
+  return `${name.replace(/\s+/g, '').toLowerCase()}|${concentration === null ? '' : String(concentration)}`
 }
 
 function isoFromUtc(d: Date): string {
@@ -64,7 +64,7 @@ function validIso(y: number, m: number, d: number): string | null {
 /** Excel date cell → YYYY-MM-DD. ExcelJS gives dates as UTC midnight; numbers are Excel serial days. */
 export function cellToDate(v: unknown): string | null {
   if (v instanceof Date) return isNaN(v.getTime()) ? null : isoFromUtc(v)
-  if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? isoFromUtc(new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000)) : null
+  if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? isoFromUtc(new Date(Date.UTC(1899, 11, 30) + Math.floor(v) * 86400000)) : null
   if (typeof v === 'string') {
     const m = /^\s*(\d{4})[-./]\s*(\d{1,2})[-./]\s*(\d{1,2})\.?\s*$/.exec(v)
     return m ? validIso(Number(m[1]), Number(m[2]), Number(m[3])) : null

@@ -77,6 +77,11 @@ describe('duplicates: same name and concentration', () => {
     expect(register({ name: 'ethanol', concentration: 95, casNo: '', toxic: '해당 없음', accidentPrep: '해당 없음' }).error.code).toBe('INVALID')
   })
 
+  test('spaces inside the name do not make a new reagent', () => {
+    register({ name: '수산화 나트륨', concentration: 5, casNo: '1310-73-2' })
+    expect(register({ name: '수산화나트륨', concentration: 5, casNo: '1310-73-2' }).error.code).toBe('INVALID')
+  })
+
   test('another concentration, or a blank one, is a different reagent', () => {
     register()
     expect(register({ concentration: 9 }).ok).toBe(true)

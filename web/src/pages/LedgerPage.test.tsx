@@ -27,6 +27,7 @@ beforeEach(() => {
       reagent('a', '아세톤', { toxic: '판정 불가', accidentPrep: '판정 불가' }),
       reagent('gone', '다 쓴 시약', { deleted: true }),
       reagent('old', '작년 시약'),
+      reagent('gone2025', '작년에 지운 시약', { deleted: true, deletedAt: '2026-01-10T10:00:00+09:00' }),
     ],
     ReagentTx: [
       tx('t1', 'b', '2026-03-01', 'initial', 500),
@@ -35,6 +36,7 @@ beforeEach(() => {
       tx('t4', 'gone', '2026-04-01', 'out', 10),
       tx('t5', 'old', '2024-03-01', 'initial', 5),
       tx('t6', 'old', '2024-04-01', 'out', 5),
+      tx('t7', 'gone2025', '2025-03-01', 'initial', 50),
     ],
   })
   vi.mocked(callApi).mockImplementation(fake.handle as typeof callApi)
@@ -59,6 +61,14 @@ test('prints every reagent of the school year, deleted ones included, in name or
   expect(await screen.findByRole('region', { name: '다 쓴 시약 1쪽' })).toBeInTheDocument()
   expect(screen.getByLabelText('학년도')).toHaveValue('2026')
   expect(screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))).toEqual(['다 쓴 시약 1쪽', '아세톤 1쪽', '황산 98% 1쪽'])
+})
+
+test('a reagent deleted before the school year is left out even with stock left', async () => {
+  renderAt('/reagents/ledger')
+  await screen.findByRole('region', { name: '황산 98% 1쪽' })
+  expect(screen.queryByRole('region', { name: '작년에 지운 시약 1쪽' })).not.toBeInTheDocument()
+  await userEvent.selectOptions(screen.getByLabelText('학년도'), '2025')
+  expect(await screen.findByRole('region', { name: '작년에 지운 시약 1쪽' })).toBeInTheDocument()
 })
 
 test('ids in the address limit the ledger to those reagents', async () => {

@@ -41,7 +41,8 @@ export default function LedgerPage() {
   const items = useMemo(
     () =>
       (reagents ?? [])
-        .filter((r) => ids.length === 0 || ids.includes(r.id))
+        // A reagent deleted before this school year stays out of its "전체" ledger.
+        .filter((r) => (ids.length ? ids.includes(r.id) : !r.deleted || (r.deletedAt || '9999-12-31').slice(0, 10) >= schoolYearRange(year).start))
         .map((reagent) => ({ reagent, lines: ledgerLines(byReagent.get(reagent.id) ?? [], year) }))
         .filter((item) => item.lines.length > 0),
     [reagents, byReagent, year, ids],

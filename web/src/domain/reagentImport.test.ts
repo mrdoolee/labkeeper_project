@@ -27,6 +27,7 @@ describe('cellToDate', () => {
   test.each([
     [new Date(Date.UTC(2026, 2, 1)), '2026-03-01'],
     [46082, '2026-03-01'],
+    [46082.75, '2026-03-01'],
     ['2026.3.1', '2026-03-01'],
     ['2026-03-01', '2026-03-01'],
     ['2026/03/01', '2026-03-01'],
@@ -78,6 +79,7 @@ describe('parseImport', () => {
 
   test('duplicateKey ignores spaces and case; a blank concentration is its own value', () => {
     expect(duplicateKey(' Ethanol ', 95)).toBe(duplicateKey('ethanol', 95))
+    expect(duplicateKey('수산화 나트륨', 5)).toBe(duplicateKey('수산화나트륨', 5))
     expect(duplicateKey('에탄올', null)).not.toBe(duplicateKey('에탄올', 100))
   })
 })

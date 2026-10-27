@@ -34,6 +34,10 @@ export async function buildTemplate(places: Place[]): Promise<Blob> {
   input.addRow(IMPORT_COLUMNS.map((c) => EXAMPLE[c.key] ?? ''))
   input.getRow(2).font = { italic: true, color: { argb: 'FF64748B' } }
 
+  // Text, so a typed "35%" stays "35%" instead of becoming 0.35.
+  const concentrationCol = IMPORT_COLUMNS.findIndex((c) => c.key === 'concentration') + 1
+  for (let r = 2; r <= INPUT_ROWS + 1; r++) input.getCell(r, concentrationCol).numFmt = '@'
+
   IMPORT_COLUMNS.forEach((c, i) => {
     const formulae = c.key === 'zoneId' ? (places.length ? [`'위치목록'!$A$1:$A$${places.length}`] : null) : c.choices ? [`"${c.choices.join(',')}"`] : null
     if (!formulae) return
@@ -65,8 +69,14 @@ export async function readWorkbook(file: File): Promise<unknown[][]> {
   if (!ws) return []
   const rows: unknown[][] = []
   for (let r = 1; r <= ws.rowCount; r++) {
-    const values = ws.getRow(r).values as unknown[]
-    rows.push(Array.isArray(values) ? values.slice(1) : [])
+    const row = ws.getRow(r)
+    const values: unknown[] = []
+    for (let c = 1; c <= row.cellCount; c++) {
+      const cell = row.getCell(c)
+      // A percent-formatted number (typed "35%") is stored as 0.35.
+      values.push(typeof cell.value === 'number' && String(cell.numFmt ?? '').includes('%') ? Math.round(cell.value * 1e8) / 1e6 : cell.value)
+    }
+    rows.push(values)
   }
   return rows
 }

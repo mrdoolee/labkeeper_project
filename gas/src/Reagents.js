@@ -98,10 +98,10 @@ function validateReagent(values, isCreate, lookup) {
   return values;
 }
 
-// Same name (spaces and case ignored) and same concentration = the same reagent.
+// Same name (all spaces and case ignored: 수산화 나트륨 = 수산화나트륨) and same concentration = the same reagent.
 function reagentKey(name, concentration) {
   var c = concentration === null || concentration === undefined || concentration === '' ? '' : String(concentration);
-  return String(name).trim().toLowerCase() + '|' + c;
+  return String(name).replace(/\s+/g, '').toLowerCase() + '|' + c;
 }
 
 function liveReagentKeys(exceptId) {
