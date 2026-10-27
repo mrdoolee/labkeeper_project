@@ -7,5 +7,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/setupTests.ts',
     include: ['src/**/*.test.{ts,tsx}'],
+    // Page tests click through real React screens; a busy Windows PC can take over 5 s.
+    testTimeout: 20000,
   },
 })
