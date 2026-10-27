@@ -24,6 +24,7 @@ export function TxDialog({
 }) {
   const titleId = useId()
   const isOut = mode === 'out'
+  const isInitial = tx?.kind === 'initial'
   const [date, setDate] = useState(tx?.date ?? todayKst())
   const [amount, setAmount] = useState(tx ? String(tx.amount) : '')
   const [purpose, setPurpose] = useState(tx?.purpose ?? (isOut ? '' : reagent.supplier))
@@ -34,23 +35,38 @@ export function TxDialog({
   const { busy, run } = useBusy(setError)
 
   useEffect(() => {
-    if (isOut) reagentsApi.recentPurposes().then(setRecent).catch(() => setRecent([]))
+    if (isOut)
+      reagentsApi
+        .recentPurposes()
+        .then(setRecent)
+        .catch(() => setRecent([]))
   }, [isOut])
 
   const value = Number(amount)
-  const valid = amount.trim() !== '' && Number.isFinite(value) && value > 0
+  const valid = amount.trim() !== '' && Number.isFinite(value) && (isInitial ? value >= 0 : value > 0)
   // What this record did before the edit, taken out of the current stock.
   const base = tx ? round3(reagent.stock - (tx.kind === 'out' ? -tx.amount : tx.amount)) : reagent.stock
   const after = valid ? round3(isOut ? base - value : base + value) : null
   const tooMuch = after !== null && after < 0
-  const title = `${isOut ? '사용 기록' : '입고'}${tx ? ' 고치기' : ''} – ${reagentLabel(reagent)}`
+  const kindName = isInitial ? '기초 재고' : isOut ? '사용 기록' : '입고'
+  const title = `${kindName}${tx ? ' 고치기' : ''} – ${reagentLabel(reagent)}`
 
   async function save(e: FormEvent) {
     e.preventDefault()
     if (!valid || tooMuch) return
-    const fields = { date, amount: value, purpose: purpose.trim(), note: note.trim(), ...(isOut ? {} : { price: price.trim() === '' ? null : Number(price) }) }
+    const fields = isInitial
+      ? { date, amount: value }
+      : {
+          date,
+          amount: value,
+          purpose: purpose.trim(),
+          note: note.trim(),
+          ...(isOut ? {} : { price: price.trim() === '' ? null : Number(price) }),
+        }
     await run(async () => {
-      const res = tx ? await reagentsApi.txUpdate(tx.id, fields) : await reagentsApi.txCreate({ reagentId: reagent.id, kind: mode, ...fields })
+      const res = tx
+        ? await reagentsApi.txUpdate(tx.id, fields)
+        : await reagentsApi.txCreate({ reagentId: reagent.id, kind: mode, purpose: '', ...fields })
       onSaved(res.stock)
     })
   }
@@ -65,7 +81,7 @@ export function TxDialog({
         <ErrorMessage message={error} />
         <Field label="일자" type="date" value={date} max={todayKst()} onChange={(e) => setDate(e.target.value)} required />
         <Field
-          label={`${isOut ? '사용량' : '입고량'} (${reagent.unit})`}
+          label={`${isInitial ? '기초 재고량' : isOut ? '사용량' : '입고량'} (${reagent.unit})`}
           type="number"
           inputMode="decimal"
           min="0"
@@ -81,7 +97,9 @@ export function TxDialog({
           </p>
         )}
         {tooMuch && <p className="error">남은 양보다 많습니다.</p>}
-        <Field label={isOut ? '용도' : '구입처'} value={purpose} onChange={(e) => setPurpose(e.target.value)} required={isOut} maxLength={200} />
+        {!isInitial && (
+          <Field label={isOut ? '용도' : '구입처'} value={purpose} onChange={(e) => setPurpose(e.target.value)} required={isOut} maxLength={200} />
+        )}
         {isOut && recent.length > 0 && (
           <div className="chips" aria-label="최근 용도">
             {recent.map((p) => (
@@ -91,8 +109,8 @@ export function TxDialog({
             ))}
           </div>
         )}
-        {!isOut && <Field label="금액(원, 선택)" type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} />}
-        <Field label="비고" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
+        {!isOut && !isInitial && <Field label="금액(원, 선택)" type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} />}
+        {!isInitial && <Field label="비고" value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />}
         <div className="toolbar">
           <span className="spacer" />
           <button type="button" onClick={onClose}>

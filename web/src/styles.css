@@ -771,3 +771,31 @@ a.button.primary:hover {
   outline: 3px solid #f59e0b;
   outline-offset: -3px;
 }
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0 var(--space);
+}
+
+.reagent-form fieldset {
+  margin: var(--space) 0;
+}
+
+.hazard-box .hint button {
+  margin-left: 4px;
+}
+
+.place-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space);
+}
+
+.tx-table {
+  width: 100%;
+}
+
+.tx-table td.actions button + button {
+  margin-left: 4px;
+}
