@@ -54,6 +54,7 @@
 - 로컬 GAS 서버: `cd gas && npm run dev` (http://127.0.0.1:8787, 메모리 저장). 학교 정보·첫 계정 채우기: `cd gas && npm run dev:admin` (kim / first-pass-1)
 - 화면 테스트: `cd web && npm test`, 타입 검사 `npx tsc -b`, 빌드 `npm run build`
 - 학교용 GAS 한 파일: `cd gas && npm run bundle` → `gas/dist/LabKeeper.gs` (gas/src를 바꾸면 다시 만든다. GAS 테스트가 최신인지 확인한다)
+- 개발용 시트에 올리기: `cd gas && npm run deploy` (bundle → GAS 테스트 → `clasp push` → 웹 앱 배포를 새 버전으로 갱신, 주소 유지, 배포 설명에 git 커밋 표시). gas/src를 바꿔 커밋하면 이 명령으로 개발용 시트를 git 최신과 맞춘다. `gas/.clasp.json`(스크립트 ID·배포 ID)은 공개 저장소라 git에 올리지 않고 PC에만 둔다. `gas/dist/appsscript.json`은 시트의 매니페스트와 같게 둔다.
 - 통합 시험: `cd web && npm run e2e` (두 서버를 자동 실행, 연결 화면에 로컬 GAS 주소를 넣고 `/__dev/createAdmin`으로 첫 계정을 만든다. 스크린샷은 docs/screenshots/m1/). 브라우저는 PW_CHROMIUM → 클라우드의 /opt/pw-browsers Chromium → Playwright 기본 순서로 고른다. PC에서는 처음 한 번 `npx playwright install chromium`.
 - 린트: `cd web && npm run lint` (oxlint)
 - 로컬 개발: 개발 빌드에서만 연결 화면이 `http://127.0.0.1:8787/` 같은 로컬 주소를 받는다.

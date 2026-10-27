@@ -6,7 +6,8 @@
     "test": "vitest run",
     "dev": "node dev-server.mjs",
     "bundle": "node bundle.mjs",
-    "dev:admin": "node dev-admin.mjs"
+    "dev:admin": "node dev-admin.mjs",
+    "deploy": "node deploy.mjs"
   },
   "devDependencies": {
     "vitest": "^5.0.5"

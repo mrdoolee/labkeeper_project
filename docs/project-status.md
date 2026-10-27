@@ -42,6 +42,14 @@ npx playwright install chromium
 | 브라우저 시나리오 시험 | `cd web && npm run e2e` |
 | 내 PC에서 화면 띄워 보기 | 터미널 1: `cd gas && npm run dev` (가짜 시트 서버, http://127.0.0.1:8787) · 터미널 2: `cd gas && npm run dev:admin` (학교 정보와 첫 계정 kim / first-pass-1 만들기) · 터미널 3: `cd web && npm run dev` → http://localhost:5173 열고 연결 화면에 `http://127.0.0.1:8787/` 입력 |
 | 학교용 GAS 한 파일 만들기 | `cd gas && npm run bundle` → `gas/dist/LabKeeper.gs` |
+| 개발용 시트에 새 코드 올리고 새 버전 배포 | `cd gas && npm run deploy` (붙여 넣기 대신. 웹 앱 주소 유지) |
+
+**clasp 연결 (개발용 시트, PC마다 한 번)**
+- `npm install -g @google/clasp` → `clasp login` (시트 주인 구글 계정) → https://script.google.com/home/usersettings 에서 Apps Script API 사용
+- `gas/.clasp.json` 만들기 (공개 저장소라 git에 올리지 않음). 스크립트 ID는 Apps Script → 프로젝트 설정, 배포 ID는 배포 → 배포 관리의 웹 앱 배포 ID(`clasp list-deployments`에서 `@HEAD`가 아닌 것):
+  ```json
+  { "scriptId": "<스크립트 ID>", "rootDir": "dist", "deploymentId": "<웹 앱 배포 ID>" }
+  ```
 
 **알아 둘 점**
 - `main`에 올리면(push) Vercel이 공용 화면을 자동 배포합니다. GitHub 로그인은 처음 push할 때 Git이 물어봅니다(Git Credential Manager).
@@ -94,8 +102,8 @@ npx playwright install chromium
 
 ## 2. 지금 선생님이 할 일
 
-1. 개발용 시트의 **Apps Script**: 파일을 `LabKeeper` 하나만 두고 [gas/dist/LabKeeper.gs](../gas/dist/LabKeeper.gs) 내용을 붙여 넣고 저장 (옛 7개 파일은 삭제)
-2. **배포 → 배포 관리 → 수정 → 새 버전 → 배포** (주소 유지)
+1. ~~개발용 시트의 **Apps Script**: 파일을 `LabKeeper` 하나만 두고 [gas/dist/LabKeeper.gs](../gas/dist/LabKeeper.gs) 내용을 붙여 넣고 저장 (옛 7개 파일은 삭제)~~ — 완료 (2026-10-27 clasp로 확인)
+2. ~~**배포 → 배포 관리 → 수정 → 새 버전 → 배포** (주소 유지)~~ — 완료. 이제부터는 `cd gas && npm run deploy`
 3. 시트 새로고침 → **LabKeeper → 학교 정보 입력**, **운영 교사 계정 만들기**
 4. https://labkeeper-trdooleel.vercel.app/ 에 웹 앱 주소를 넣어 연결 → 로그인
 5. 확인할 것: 탭이 한국어로 바뀌었는지, 이력 탭이 읽기 쉬운지, 메뉴 아래 학교 정보가 보이는지
