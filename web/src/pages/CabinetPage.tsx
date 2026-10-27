@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { records, type Cabinet, type Room, type Zone } from '../api/records'
 import { CABINET_TYPES, STORAGE_CLASSES, planZones, type CabinetType } from '../domain/storage'
 import { ErrorMessage, errorText } from '../components/Field'
@@ -64,12 +64,15 @@ function ZoneEditor({ zone, onSaved }: { zone: Zone; onSaved: () => Promise<void
 
 export default function CabinetPage() {
   const { cabinetId = '' } = useParams()
+  // ?zone=<id> from 위치 찾기: that zone is marked and opened.
+  const [params] = useSearchParams()
+  const highlight = params.get('zone')
   const nameOf = useDirectory()
   const [cabinet, setCabinet] = useState<Cabinet | null>(null)
   const [room, setRoom] = useState<Room | null>(null)
   const [zones, setZones] = useState<Zone[]>([])
   const [form, setForm] = useState<CabinetForm | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(highlight)
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
   const { busy, run } = useBusy(setError)
@@ -171,7 +174,8 @@ export default function CabinetPage() {
                     type="button"
                     role="gridcell"
                     key={col}
-                    className={`zone${zone?.id === selected ? ' selected' : ''}`}
+                    className={`zone${zone?.id === selected ? ' selected' : ''}${zone && zone.id === highlight ? ' zone-highlight' : ''}`}
+                    ref={zone && zone.id === highlight ? (el) => el?.scrollIntoView?.({ block: 'center' }) : undefined}
                     aria-selected={zone?.id === selected}
                     disabled={!zone}
                     onClick={() => zone && setSelected(zone.id)}

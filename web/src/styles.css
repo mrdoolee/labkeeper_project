@@ -816,3 +816,23 @@ a.button.primary:hover {
 .import-table tr.row-skip td {
   color: var(--color-muted);
 }
+
+.find-input {
+  width: 100%;
+  font-size: 16px;
+  padding: 10px 12px;
+}
+
+.find-results {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: var(--space);
+}
+
+.find-results li {
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) minmax(240px, 2fr) 100px;
+  gap: var(--space);
+  align-items: center;
+}

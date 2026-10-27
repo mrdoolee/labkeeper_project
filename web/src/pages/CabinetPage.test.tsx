@@ -167,6 +167,12 @@ describe('CabinetPage', () => {
     expect(order).toEqual(['records.deleteMany', 'records.update'])
   })
 
+  test('a zone named in the address is highlighted', async () => {
+    renderAt('/cabinets/c1?zone=c1-2-1')
+    const cells = await screen.findAllByRole('gridcell')
+    expect(cells.filter((c) => c.classList.contains('zone-highlight')).map((c) => c.querySelector('strong')!.textContent)).toEqual(['2단 1칸'])
+  })
+
   test('cancelling the shrink changes nothing', async () => {
     renderAt('/cabinets/c1')
     await screen.findAllByRole('gridcell')
