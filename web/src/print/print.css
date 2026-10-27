@@ -2,7 +2,8 @@
 .ledger-sheets {
   display: grid;
   gap: 16px;
-  justify-content: center;
+  justify-content: safe center;
+  overflow-x: auto;
 }
 
 .sheet {

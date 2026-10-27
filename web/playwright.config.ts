@@ -9,6 +9,8 @@ const executablePath = process.env.PW_CHROMIUM ?? (fs.existsSync(CLOUD_CHROMIUM)
 export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
+  // One in-memory GAS dev server is shared, so the scenarios run one after another.
+  workers: 1,
   use: {
     baseURL: 'http://127.0.0.1:5173',
     launchOptions: { executablePath },
