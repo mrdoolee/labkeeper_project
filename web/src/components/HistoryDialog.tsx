@@ -54,6 +54,30 @@ const FIELD_LABELS: Record<string, string> = {
   signerPrincipal: '교장',
   labOver100m2: '실험실 면적 100㎡ 이상',
   wasteDisposal: '폐수 처리 방식',
+  concentration: '농도(%)',
+  formula: '화학식',
+  casNo: 'CAS No.',
+  grade: '규격',
+  unit: '단위',
+  stock: '현재 보유량',
+  mainUse: '주용도',
+  expiryDate: '유효기간',
+  purchaseDate: '구입일',
+  openedDate: '개봉일',
+  maker: '제조사',
+  supplier: '구입처',
+  zoneId: '보관 구역',
+  toxic: '유독물질',
+  accidentPrep: '사고대비물질',
+  hazardManual: '판정 직접 지정',
+  poison: '독극물',
+  banned: '금지물질',
+  permitted: '허가물질',
+  restricted: '제한물질',
+  date: '일자',
+  amount: '수량',
+  purpose: '용도',
+  price: '금액(원)',
 }
 
 function show(value: unknown): string {
@@ -76,7 +100,7 @@ function changes(entry: AuditEntry): string[] {
 
 /** Name of the record an entry is about: from the caller's names, else from the entry itself. */
 function targetName(e: AuditEntry, names?: Record<string, string>): string {
-  const fromEntry = (e.after?.name ?? e.before?.name) as string | undefined
+  const fromEntry = (e.after?.name ?? e.before?.name ?? e.after?.reagentName ?? e.before?.reagentName) as string | undefined
   return names?.[e.recordId] ?? fromEntry ?? (e.table === 'Settings' ? FIELD_LABELS[e.recordId] ?? e.recordId : '(이름 없음)')
 }
 

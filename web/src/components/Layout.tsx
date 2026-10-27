@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { ChevronLeft, FlaskConical, Home, LayoutGrid, LogOut, SlidersHorizontal, Users, type LucideIcon } from 'lucide-react'
+import { ChevronLeft, FlaskConical, Home, LayoutGrid, LogOut, Search, SlidersHorizontal, TestTubes, Users, type LucideIcon } from 'lucide-react'
 import { useAuth } from '../auth/AuthContext'
 import CabinetSearch from './CabinetSearch'
 
@@ -65,6 +65,8 @@ export default function Layout() {
         <div className="nav-items">
           <NavItem to="/" end icon={Home} label="홈" collapsed={collapsed} />
           <NavItem to="/rooms" icon={LayoutGrid} label="교실·보관장" collapsed={collapsed} />
+          <NavItem to="/reagents" icon={TestTubes} label="시약" collapsed={collapsed} />
+          <NavItem to="/find" icon={Search} label="위치 찾기" collapsed={collapsed} />
           <NavItem to="/settings" icon={SlidersHorizontal} label="설정" collapsed={collapsed} />
           {user?.role === 'admin' && <NavItem to="/users" icon={Users} label="계정 관리" collapsed={collapsed} />}
         </div>

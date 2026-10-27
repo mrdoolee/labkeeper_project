@@ -688,3 +688,86 @@ td .toolbar {
   border-radius: var(--radius);
   background: var(--color-primary-soft);
 }
+
+/* ---- M2 reagents ---- */
+a.button {
+  display: inline-block;
+  font: inherit;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  text-decoration: none;
+  transition: background-color 150ms;
+}
+
+a.button:hover {
+  background: var(--color-bg);
+}
+
+a.button.primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+a.button.primary:hover {
+  background: var(--color-primary-hover);
+}
+
+.badge.badge-danger {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.badge.badge-warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.reagent-table {
+  width: 100%;
+}
+
+.reagent-table td.num,
+.tx-table td.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.reagent-table td.actions {
+  white-space: nowrap;
+}
+
+.reagent-table td.actions button + button {
+  margin-left: 4px;
+}
+
+.tx-dialog {
+  width: min(480px, 100%);
+}
+
+.tx-after {
+  margin: 0 0 var(--space);
+  font-weight: 600;
+  color: var(--color-primary-strong);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: -4px 0 var(--space);
+}
+
+.chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.zone-highlight {
+  outline: 3px solid #f59e0b;
+  outline-offset: -3px;
+}
