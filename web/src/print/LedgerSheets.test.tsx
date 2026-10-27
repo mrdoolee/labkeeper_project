@@ -102,3 +102,30 @@ describe('Seoul 화학약품 관리(출납)대장', () => {
     expect(screen.getByRole('region').textContent).not.toContain('확인 필요')
   })
 })
+
+describe('page breaks', () => {
+  const outLines = (n: number): LedgerLine[] =>
+    Array.from({ length: n }, (_, i) => ({ date: `2026-04-${String(i + 1).padStart(2, '0')}`, kind: 'out', amount: 1, before: 300 - i, after: 299 - i, purpose: '실험', price: null, note: '' }))
+
+  test.each([
+    ['chungbuk', 16],
+    ['gyeonggi', 20],
+    ['seoul', 12],
+  ] as const)('%s: %i rows fit one page, one more starts page 2 where page 1 left off', (region, perPage) => {
+    const { unmount } = render(<LedgerSheets region={region} year={2026} items={[{ reagent: HCL, lines: outLines(perPage) }]} />)
+    expect(screen.getAllByRole('region')).toHaveLength(1)
+    expect(bodyRows(screen.getByRole('region'))).toHaveLength(perPage)
+    unmount()
+
+    render(<LedgerSheets region={region} year={2026} items={[{ reagent: HCL, lines: outLines(perPage + 1) }, { reagent: SALT, lines: LINES }]} />)
+    const pages = screen.getAllByRole('region').map((r) => r.getAttribute('aria-label'))
+    expect(pages).toEqual(['염화 수소(염산) 35% 1쪽', '염화 수소(염산) 35% 2쪽', '염화 나트륨 1쪽'])
+    const page1 = bodyRows(screen.getByRole('region', { name: '염화 수소(염산) 35% 1쪽' }))
+    const page2 = bodyRows(screen.getByRole('region', { name: '염화 수소(염산) 35% 2쪽' }))
+    expect(page1.at(-1)![0]).toBe(`2026.04.${String(perPage).padStart(2, '0')}`)
+    expect(page2[0][0]).toBe(`2026.04.${String(perPage + 1).padStart(2, '0')}`)
+    expect(page2[0]).toContain(String(299 - perPage))
+    expect(page2).toHaveLength(perPage)
+    expect(page2.slice(1).every((row) => row.every((c) => c === ''))).toBe(true)
+  })
+})
