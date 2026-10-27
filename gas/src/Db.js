@@ -95,7 +95,7 @@ function openTable(table) {
     SHEET_NAMES[table] || table,
     columnsOf(table),
     function (c) {
-      return COLUMN_LABELS[c];
+      return columnLabel(table, c);
     },
     function (label) {
       return keyForLabel(table, label);
@@ -269,7 +269,7 @@ function writeFields(table, id, fields) {
 }
 
 function recordLabel(row) {
-  return row ? row.name || row.loginId || '' : '';
+  return row ? row.name || row.loginId || row.reagentName || '' : '';
 }
 
 function dbUpdate(table, id, changes, user, options) {
@@ -337,7 +337,7 @@ function showValue(value) {
 
 function fieldLabel(table, key) {
   if (table === 'Settings') return SETTING_LABELS[key] || key;
-  return COLUMN_LABELS[key] || key;
+  return columnLabel(table, key) || key;
 }
 
 // The 바뀐 내용 sentence: "이름: A → B" for updates, the filled-in fields for adds.

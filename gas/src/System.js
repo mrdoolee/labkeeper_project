@@ -3,7 +3,7 @@
 // Raise together with REQUIRED_API_VERSION in web/src/api/system.ts whenever
 // the web app starts using a new action. Each school redeploys its own copy
 // of this code, so the web app checks this number.
-var API_VERSION = 3;
+var API_VERSION = 4;
 var OWNER_PROP = 'OWNER_SPREADSHEET_ID';
 // Set by the sheet menu 운영 종료: {at, note}. A closed sheet answers only system.info.
 var CLOSED_PROP = 'SHEET_CLOSED';

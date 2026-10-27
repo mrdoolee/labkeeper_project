@@ -1,7 +1,7 @@
 import { callApi } from './client'
 
 /** Must match API_VERSION in gas/src/System.js. */
-export const REQUIRED_API_VERSION = 3
+export const REQUIRED_API_VERSION = 4
 
 export const GUIDE_URL = 'https://github.com/mrdoolee/labkeeper_project/blob/main/docs/setup-guide.md'
 

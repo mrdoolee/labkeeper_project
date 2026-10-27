@@ -198,7 +198,7 @@ function checkSheetStructure() {
       return keyForLabel(table, h);
     });
     columnsOf(table).forEach(function (column) {
-      if (keys.indexOf(column) < 0) problems.push(name + ' 시트에 ' + COLUMN_LABELS[column] + ' 열이 없습니다');
+      if (keys.indexOf(column) < 0) problems.push(name + ' 시트에 ' + columnLabel(table, column) + ' 열이 없습니다');
     });
   });
   Object.keys(HISTORY_TABS).forEach(function (group) {

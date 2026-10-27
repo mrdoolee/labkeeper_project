@@ -16,6 +16,6 @@ test('the school file runs on its own as one Apps Script file', () => {
   const ctx = vm.createContext({ ...createFakes().globals, console })
   vm.runInContext(bundleSource(), ctx)
   for (const fn of ['doPost', 'doGet', 'onOpen', 'sheetCreateAdmin', 'systemInfo']) expect(typeof ctx[fn]).toBe('function')
-  expect(ctx.API_VERSION).toBe(3)
+  expect(ctx.API_VERSION).toBe(4)
   expect(bundleSource()).toMatch(/^\/\/ LabKeeper 학교용 코드/)
 })

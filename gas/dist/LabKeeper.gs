@@ -1,4 +1,4 @@
-// LabKeeper 학교용 코드 (API_VERSION 3)
+// LabKeeper 학교용 코드 (API_VERSION 4)
 // gas/src에서 자동으로 만든 파일입니다. 직접 고치지 말고 저장소에서 npm run bundle로 다시 만드세요.
 // Apps Script 편집기에 이 파일 하나만 두고, 배포 → 배포 관리 → 수정 → 새 버전으로 배포하세요.
 
@@ -158,7 +158,7 @@ function authChangePassword(payload, user) {
 var ACTIONS = {};
 
 function registerActions() {
-  var groups = [systemActions(), authActions(), usersActions(), settingsActions(), recordsActions()];
+  var groups = [systemActions(), authActions(), usersActions(), settingsActions(), recordsActions(), reagentsActions()];
   groups.forEach(function (group) {
     Object.keys(group).forEach(function (name) {
       if (!ACTIONS[name]) ACTIONS[name] = group[name];
@@ -331,7 +331,7 @@ function openTable(table) {
     SHEET_NAMES[table] || table,
     columnsOf(table),
     function (c) {
-      return COLUMN_LABELS[c];
+      return columnLabel(table, c);
     },
     function (label) {
       return keyForLabel(table, label);
@@ -505,7 +505,7 @@ function writeFields(table, id, fields) {
 }
 
 function recordLabel(row) {
-  return row ? row.name || row.loginId || '' : '';
+  return row ? row.name || row.loginId || row.reagentName || '' : '';
 }
 
 function dbUpdate(table, id, changes, user, options) {
@@ -573,7 +573,7 @@ function showValue(value) {
 
 function fieldLabel(table, key) {
   if (table === 'Settings') return SETTING_LABELS[key] || key;
-  return COLUMN_LABELS[key] || key;
+  return columnLabel(table, key) || key;
 }
 
 // The 바뀐 내용 sentence: "이름: A → B" for updates, the filled-in fields for adds.
@@ -1020,7 +1020,7 @@ function checkSheetStructure() {
       return keyForLabel(table, h);
     });
     columnsOf(table).forEach(function (column) {
-      if (keys.indexOf(column) < 0) problems.push(name + ' 시트에 ' + COLUMN_LABELS[column] + ' 열이 없습니다');
+      if (keys.indexOf(column) < 0) problems.push(name + ' 시트에 ' + columnLabel(table, column) + ' 열이 없습니다');
     });
   });
   Object.keys(HISTORY_TABS).forEach(function (group) {
@@ -1253,6 +1253,221 @@ function menuGuide() {
   );
 }
 
+// ===== Reagents.js =====
+
+// Reagents and their in/out records (design M2 5·7). Only these actions write
+// the two tables, so stock always equals the sum of the live records.
+
+var HAZARD_STATUSES = ['해당', '해당 없음', '판정 불가'];
+var REAGENT_GRADES = ['', '시약용', '공업용'];
+var REAGENT_UNITS = ['mL', 'g'];
+var TX_KIND_LABELS = { initial: '기초 재고', in: '입고', out: '출고' };
+
+function reagentsActions() {
+  return {
+    'reagents.list': { auth: 'user', write: false, handler: reagentsList },
+    'reagents.create': { auth: 'user', write: true, handler: reagentsCreate },
+    'reagents.createMany': { auth: 'user', write: true, handler: reagentsCreateMany },
+    'reagents.update': { auth: 'user', write: true, handler: reagentsUpdate },
+    'reagents.delete': { auth: 'user', write: true, handler: reagentsDelete },
+    'reagents.restore': { auth: 'user', write: true, handler: reagentsRestore },
+  };
+}
+
+function round3(x) {
+  return Math.round(x * 1000) / 1000;
+}
+
+function todayKst() {
+  return kstParts(new Date()).date;
+}
+
+function isDateText(text) {
+  if (typeof text !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  var d = new Date(text + 'T00:00:00Z');
+  return !isNaN(d.getTime()) && d.toISOString().slice(0, 10) === text;
+}
+
+function checkDate(values, key, label, required) {
+  var v = values[key];
+  if (v === undefined || v === null || v === '') {
+    if (required) throw invalid(label + '을(를) 입력해 주세요.');
+    if (v === null) values[key] = '';
+    return;
+  }
+  if (!isDateText(v)) throw invalid(label + '은(는) 2026-03-16 같은 날짜로 입력해 주세요.');
+}
+
+// Same rule as isValidCas in web/src/domain/hazard.ts.
+function isValidCas(cas) {
+  var m = /^(\d{2,7})-(\d{2})-(\d)$/.exec(cas);
+  if (!m) return false;
+  var digits = (m[1] + m[2]).split('').reverse();
+  var sum = 0;
+  for (var i = 0; i < digits.length; i++) sum += Number(digits[i]) * (i + 1);
+  return sum % 10 === Number(m[3]);
+}
+
+function checkChoice(values, key, label, choices) {
+  if (values[key] !== undefined && choices.indexOf(values[key]) < 0) throw invalid(label + ' 값이 올바르지 않습니다.');
+}
+
+function textOrEmpty(values, key) {
+  if (values[key] === null) values[key] = '';
+}
+
+function validateReagent(values, isCreate, lookup) {
+  Object.keys(values).forEach(function (key) {
+    if (REAGENT_COLUMNS_INPUT.indexOf(key) < 0) throw invalid('알 수 없는 항목입니다: ' + key);
+  });
+  ['name', 'formula', 'casNo', 'mainUse', 'maker', 'supplier', 'zoneId', 'note'].forEach(function (key) {
+    textOrEmpty(values, key);
+  });
+  checkText(values, 'name', '약품명', isCreate || values.name !== undefined, 100);
+  if (values.concentration === '' || values.concentration === null) values.concentration = null;
+  else if (values.concentration !== undefined) {
+    var c = values.concentration;
+    if (typeof c !== 'number' || !(c > 0 && c <= 100)) throw invalid('농도는 0보다 크고 100 이하인 %로 입력해 주세요.');
+  }
+  checkText(values, 'formula', '화학식', false, 50);
+  checkText(values, 'casNo', 'CAS No.', false, 20);
+  if (values.casNo && !isValidCas(values.casNo)) throw invalid('CAS No.가 올바르지 않습니다: ' + values.casNo);
+  checkChoice(values, 'grade', '규격', REAGENT_GRADES);
+  if (isCreate || values.unit !== undefined) checkChoice({ unit: values.unit === undefined ? null : values.unit }, 'unit', '단위', REAGENT_UNITS);
+  checkText(values, 'mainUse', '주용도', false, 50);
+  checkDate(values, 'expiryDate', '유효기간', false);
+  checkDate(values, 'purchaseDate', '구입일', false);
+  checkDate(values, 'openedDate', '개봉일', false);
+  checkText(values, 'maker', '제조사', false, 100);
+  checkText(values, 'supplier', '구입처', false, 100);
+  checkText(values, 'note', '비고', false, 500);
+  if (values.zoneId && !existsIn(lookup, 'Zones', values.zoneId)) throw apiError('NOT_FOUND', '보관 구역을 찾을 수 없습니다.');
+  checkChoice(values, 'toxic', '유독물질 판정', HAZARD_STATUSES);
+  checkChoice(values, 'accidentPrep', '사고대비물질 판정', HAZARD_STATUSES);
+  ['hazardManual', 'poison', 'banned', 'permitted', 'restricted'].forEach(function (key) {
+    checkBoolean(values, key, COLUMN_LABELS[key]);
+  });
+  if (isCreate) {
+    if (values.mainUse === undefined) values.mainUse = '실험용';
+    if (values.toxic === undefined) values.toxic = '판정 불가';
+    if (values.accidentPrep === undefined) values.accidentPrep = '판정 불가';
+  }
+  return values;
+}
+
+// Same name (spaces and case ignored) and same concentration = the same reagent.
+function reagentKey(name, concentration) {
+  var c = concentration === null || concentration === undefined || concentration === '' ? '' : String(concentration);
+  return String(name).trim().toLowerCase() + '|' + c;
+}
+
+function liveReagentKeys(exceptId) {
+  var keys = {};
+  dbList('Reagents').forEach(function (r) {
+    if (r.id !== exceptId) keys[reagentKey(r.name, r.concentration)] = r;
+  });
+  return keys;
+}
+
+function duplicateError(name) {
+  return invalid('이미 등록된 시약입니다: ' + name + ' (같은 약품명·농도는 한 건으로 관리합니다)');
+}
+
+function checkInitial(amount, date) {
+  if (typeof amount !== 'number' || !(amount >= 0) || !isFinite(amount)) throw invalid('기초 재고량은 0 이상의 숫자로 입력해 주세요.');
+  if (!isDateText(date)) throw invalid('기준일은 2026-03-16 같은 날짜로 입력해 주세요.');
+  if (date > todayKst()) throw invalid('기준일은 오늘 이후일 수 없습니다.');
+}
+
+function initialTx(reagent, amount, date) {
+  return { reagentId: reagent.id, reagentName: reagent.name, date: date, kind: TX_KIND_LABELS.initial, amount: round3(amount), purpose: '', price: '', note: '' };
+}
+
+function reagentsList(payload) {
+  return dbList('Reagents', { includeDeleted: !!payload.includeDeleted });
+}
+
+function reagentsCreate(payload, user) {
+  var values = validateReagent(copyOf(payload.values), true, {});
+  checkInitial(payload.initialAmount, payload.initialDate);
+  if (liveReagentKeys()[reagentKey(values.name, values.concentration)]) throw duplicateError(values.name);
+  values.stock = round3(payload.initialAmount);
+  var reagent = dbCreate('Reagents', values, user);
+  dbCreate('ReagentTx', initialTx(reagent, payload.initialAmount, payload.initialDate), user);
+  return reagent;
+}
+
+function reagentsCreateMany(payload, user) {
+  if (!Array.isArray(payload.rows) || payload.rows.length > 500) throw invalid('한 번에 500줄까지 보낼 수 있습니다.');
+  var existing = liveReagentKeys();
+  var inFile = {};
+  var lookup = {};
+  var toCreate = [];
+  var skippedLines = [];
+  payload.rows.forEach(function (row) {
+    var line = row && row.line;
+    try {
+      var values = validateReagent(copyOf(row.values), true, lookup);
+      checkInitial(row.initialAmount, row.initialDate);
+      var key = reagentKey(values.name, values.concentration);
+      if (existing[key]) {
+        skippedLines.push(line);
+        return;
+      }
+      if (inFile[key]) throw invalid(inFile[key] + '번째 줄과 같은 시약입니다.');
+      inFile[key] = line;
+      values.stock = round3(row.initialAmount);
+      toCreate.push({ values: values, amount: row.initialAmount, date: row.initialDate });
+    } catch (err) {
+      if (err && err.isApiError) throw apiError(err.code, line + '번째 줄: ' + err.message);
+      throw err;
+    }
+  });
+  var created = dbCreateMany(
+    'Reagents',
+    toCreate.map(function (r) {
+      return r.values;
+    }),
+    user,
+  );
+  dbCreateMany(
+    'ReagentTx',
+    created.map(function (reagent, i) {
+      return initialTx(reagent, toCreate[i].amount, toCreate[i].date);
+    }),
+    user,
+  );
+  return { created: created, skippedLines: skippedLines };
+}
+
+function liveReagent(id) {
+  var r = dbGet('Reagents', id);
+  if (!r || r.deleted) throw apiError('NOT_FOUND', '시약을 찾을 수 없습니다.');
+  return r;
+}
+
+function reagentsUpdate(payload, user) {
+  var current = liveReagent(payload.id);
+  var changes = validateReagent(copyOf(payload.changes), false, {});
+  if (changes.name !== undefined || changes.concentration !== undefined) {
+    var name = changes.name !== undefined ? changes.name : current.name;
+    var concentration = changes.concentration !== undefined ? changes.concentration : current.concentration;
+    if (liveReagentKeys(current.id)[reagentKey(name, concentration)]) throw duplicateError(name);
+  }
+  return dbUpdate('Reagents', current.id, changes, user);
+}
+
+function reagentsDelete(payload, user) {
+  return dbSoftDelete('Reagents', liveReagent(payload.id).id, user);
+}
+
+function reagentsRestore(payload, user) {
+  var r = dbGet('Reagents', payload.id);
+  if (!r) throw apiError('NOT_FOUND', '시약을 찾을 수 없습니다.');
+  if (liveReagentKeys(r.id)[reagentKey(r.name, r.concentration)]) throw duplicateError(r.name);
+  return dbRestore('Reagents', r.id, user);
+}
+
 // ===== Records.js =====
 
 // Generic create/read/update/delete for the tables in RECORD_TABLES, with
@@ -1450,6 +1665,12 @@ function auditList(payload) {
 
 // ===== Schema.js =====
 
+// Reagent columns a person fills in (stock is kept by the server).
+var REAGENT_COLUMNS_INPUT = [
+  'name', 'concentration', 'formula', 'casNo', 'grade', 'unit', 'mainUse', 'expiryDate', 'purchaseDate', 'openedDate',
+  'maker', 'supplier', 'zoneId', 'toxic', 'accidentPrep', 'hazardManual', 'poison', 'banned', 'permitted', 'restricted', 'note',
+];
+
 // Table definitions. Code uses the keys (Users, roomId …); the spreadsheet
 // shows Korean tab names and headers (SHEET_NAMES, COLUMN_LABELS).
 
@@ -1460,10 +1681,12 @@ var TABLES = {
   Rooms: ['name', 'isLab', 'note'],
   Cabinets: ['roomId', 'name', 'type', 'locked', 'rows', 'cols', 'note'],
   Zones: ['cabinetId', 'row', 'col', 'name', 'allowedClasses'],
+  Reagents: REAGENT_COLUMNS_INPUT.concat(['stock']),
+  ReagentTx: ['reagentId', 'reagentName', 'date', 'kind', 'amount', 'purpose', 'price', 'note'],
 };
 
-var SHEET_NAMES = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역' };
-var TABLE_LABELS = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역', System: '시트' };
+var SHEET_NAMES = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역', Reagents: '시약', ReagentTx: '시약 수불' };
+var TABLE_LABELS = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역', Reagents: '시약', ReagentTx: '시약 수불', System: '시트' };
 
 // Column order in a new tab: the table's readable columns, who/when, then ids and secrets.
 var COMMON_VISIBLE = ['createdByName', 'createdAt', 'updatedByName', 'updatedAt', 'deleted', 'deletedByName', 'deletedAt'];
@@ -1474,6 +1697,12 @@ var TABLE_LAYOUT = {
   Rooms: [['name', 'isLab', 'note'], []],
   Cabinets: [['name', 'type', 'locked', 'rows', 'cols', 'note'], ['roomId']],
   Zones: [['row', 'col', 'name', 'allowedClasses'], ['cabinetId']],
+  Reagents: [
+    ['name', 'concentration', 'formula', 'casNo', 'grade', 'unit', 'stock', 'mainUse', 'expiryDate', 'purchaseDate', 'openedDate',
+      'maker', 'supplier', 'toxic', 'accidentPrep', 'hazardManual', 'poison', 'banned', 'permitted', 'restricted', 'note'],
+    ['zoneId'],
+  ],
+  ReagentTx: [['reagentName', 'date', 'kind', 'amount', 'purpose', 'price', 'note'], ['reagentId']],
 };
 
 var COLUMN_LABELS = {
@@ -1509,7 +1738,45 @@ var COLUMN_LABELS = {
   col: '칸',
   allowedClasses: '허용 보관 분류',
   cabinetId: '보관장 ID',
+  concentration: '농도(%)',
+  formula: '화학식',
+  casNo: 'CAS No.',
+  grade: '규격',
+  unit: '단위',
+  stock: '현재 보유량',
+  mainUse: '주용도',
+  expiryDate: '유효기간',
+  purchaseDate: '구입일',
+  openedDate: '개봉일',
+  maker: '제조사',
+  supplier: '구입처',
+  zoneId: '보관 구역 ID',
+  toxic: '유독물질',
+  accidentPrep: '사고대비물질',
+  hazardManual: '판정 직접 지정',
+  poison: '독극물',
+  banned: '금지물질',
+  permitted: '허가물질',
+  restricted: '제한물질',
+  reagentId: '시약 ID',
+  reagentName: '약품명',
+  date: '일자',
+  kind: '구분',
+  amount: '수량',
+  purpose: '용도',
+  price: '금액(원)',
 };
+
+// Headers that differ in one table (the ledger forms call these 약품명 and 비고).
+var TABLE_COLUMN_LABELS = {
+  Reagents: { name: '약품명', note: '비고' },
+  ReagentTx: { note: '비고' },
+};
+
+function columnLabel(table, column) {
+  var own = TABLE_COLUMN_LABELS[table];
+  return (own && own[column]) || COLUMN_LABELS[column];
+}
 
 var SETTING_LABELS = {
   schoolName: '학교 이름',
@@ -1530,9 +1797,10 @@ var HISTORY_TABS = {
   users: '계정 이력',
   access: '접속 기록',
   rooms: '교실 이력',
+  reagents: '시약 이력',
   other: '기타 이력',
 };
-var HISTORY_GROUP_OF_TABLE = { Settings: 'settings', System: 'settings', Users: 'users', Rooms: 'rooms', Cabinets: 'rooms', Zones: 'rooms' };
+var HISTORY_GROUP_OF_TABLE = { Settings: 'settings', System: 'settings', Users: 'users', Rooms: 'rooms', Cabinets: 'rooms', Zones: 'rooms', Reagents: 'reagents', ReagentTx: 'reagents' };
 var HISTORY_COLUMNS = ['when', 'userName', 'tableLabel', 'target', 'actionLabel', 'summary', 'id', 'at', 'userId', 'table', 'recordId', 'action', 'before', 'after'];
 var HISTORY_RAW_FROM = 'id';
 var HISTORY_LABELS = {
@@ -1577,7 +1845,7 @@ function columnsOf(table) {
 function keyForLabel(table, label) {
   var columns = columnsOf(table);
   for (var i = 0; i < columns.length; i++) {
-    if (COLUMN_LABELS[columns[i]] === label || columns[i] === label) return columns[i];
+    if (columnLabel(table, columns[i]) === label || columns[i] === label) return columns[i];
   }
   return null;
 }
@@ -1594,8 +1862,8 @@ function historyGroupFor(table, action) {
   return HISTORY_GROUP_OF_TABLE[table] || 'other';
 }
 
-var BOOLEAN_COLUMNS = ['deleted', 'locked', 'active', 'mustChangePassword', 'labOver100m2', 'isLab'];
-var NUMBER_COLUMNS = ['rows', 'cols', 'row', 'col'];
+var BOOLEAN_COLUMNS = ['deleted', 'locked', 'active', 'mustChangePassword', 'labOver100m2', 'isLab', 'hazardManual', 'poison', 'banned', 'permitted', 'restricted'];
+var NUMBER_COLUMNS = ['rows', 'cols', 'row', 'col', 'concentration', 'stock', 'amount', 'price'];
 
 // Never copied into the audit log.
 var SECRET_COLUMNS = ['salt', 'hash'];
@@ -1724,7 +1992,7 @@ function writeSettings(payload, user) {
 // Raise together with REQUIRED_API_VERSION in web/src/api/system.ts whenever
 // the web app starts using a new action. Each school redeploys its own copy
 // of this code, so the web app checks this number.
-var API_VERSION = 3;
+var API_VERSION = 4;
 var OWNER_PROP = 'OWNER_SPREADSHEET_ID';
 // Set by the sheet menu 운영 종료: {at, note}. A closed sheet answers only system.info.
 var CLOSED_PROP = 'SHEET_CLOSED';

@@ -1,3 +1,9 @@
+// Reagent columns a person fills in (stock is kept by the server).
+var REAGENT_COLUMNS_INPUT = [
+  'name', 'concentration', 'formula', 'casNo', 'grade', 'unit', 'mainUse', 'expiryDate', 'purchaseDate', 'openedDate',
+  'maker', 'supplier', 'zoneId', 'toxic', 'accidentPrep', 'hazardManual', 'poison', 'banned', 'permitted', 'restricted', 'note',
+];
+
 // Table definitions. Code uses the keys (Users, roomId …); the spreadsheet
 // shows Korean tab names and headers (SHEET_NAMES, COLUMN_LABELS).
 
@@ -8,10 +14,12 @@ var TABLES = {
   Rooms: ['name', 'isLab', 'note'],
   Cabinets: ['roomId', 'name', 'type', 'locked', 'rows', 'cols', 'note'],
   Zones: ['cabinetId', 'row', 'col', 'name', 'allowedClasses'],
+  Reagents: REAGENT_COLUMNS_INPUT.concat(['stock']),
+  ReagentTx: ['reagentId', 'reagentName', 'date', 'kind', 'amount', 'purpose', 'price', 'note'],
 };
 
-var SHEET_NAMES = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역' };
-var TABLE_LABELS = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역', System: '시트' };
+var SHEET_NAMES = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역', Reagents: '시약', ReagentTx: '시약 수불' };
+var TABLE_LABELS = { Settings: '환경설정', Users: '계정', Rooms: '교실', Cabinets: '보관장', Zones: '보관장 구역', Reagents: '시약', ReagentTx: '시약 수불', System: '시트' };
 
 // Column order in a new tab: the table's readable columns, who/when, then ids and secrets.
 var COMMON_VISIBLE = ['createdByName', 'createdAt', 'updatedByName', 'updatedAt', 'deleted', 'deletedByName', 'deletedAt'];
@@ -22,6 +30,12 @@ var TABLE_LAYOUT = {
   Rooms: [['name', 'isLab', 'note'], []],
   Cabinets: [['name', 'type', 'locked', 'rows', 'cols', 'note'], ['roomId']],
   Zones: [['row', 'col', 'name', 'allowedClasses'], ['cabinetId']],
+  Reagents: [
+    ['name', 'concentration', 'formula', 'casNo', 'grade', 'unit', 'stock', 'mainUse', 'expiryDate', 'purchaseDate', 'openedDate',
+      'maker', 'supplier', 'toxic', 'accidentPrep', 'hazardManual', 'poison', 'banned', 'permitted', 'restricted', 'note'],
+    ['zoneId'],
+  ],
+  ReagentTx: [['reagentName', 'date', 'kind', 'amount', 'purpose', 'price', 'note'], ['reagentId']],
 };
 
 var COLUMN_LABELS = {
@@ -57,7 +71,45 @@ var COLUMN_LABELS = {
   col: '칸',
   allowedClasses: '허용 보관 분류',
   cabinetId: '보관장 ID',
+  concentration: '농도(%)',
+  formula: '화학식',
+  casNo: 'CAS No.',
+  grade: '규격',
+  unit: '단위',
+  stock: '현재 보유량',
+  mainUse: '주용도',
+  expiryDate: '유효기간',
+  purchaseDate: '구입일',
+  openedDate: '개봉일',
+  maker: '제조사',
+  supplier: '구입처',
+  zoneId: '보관 구역 ID',
+  toxic: '유독물질',
+  accidentPrep: '사고대비물질',
+  hazardManual: '판정 직접 지정',
+  poison: '독극물',
+  banned: '금지물질',
+  permitted: '허가물질',
+  restricted: '제한물질',
+  reagentId: '시약 ID',
+  reagentName: '약품명',
+  date: '일자',
+  kind: '구분',
+  amount: '수량',
+  purpose: '용도',
+  price: '금액(원)',
 };
+
+// Headers that differ in one table (the ledger forms call these 약품명 and 비고).
+var TABLE_COLUMN_LABELS = {
+  Reagents: { name: '약품명', note: '비고' },
+  ReagentTx: { note: '비고' },
+};
+
+function columnLabel(table, column) {
+  var own = TABLE_COLUMN_LABELS[table];
+  return (own && own[column]) || COLUMN_LABELS[column];
+}
 
 var SETTING_LABELS = {
   schoolName: '학교 이름',
@@ -78,9 +130,10 @@ var HISTORY_TABS = {
   users: '계정 이력',
   access: '접속 기록',
   rooms: '교실 이력',
+  reagents: '시약 이력',
   other: '기타 이력',
 };
-var HISTORY_GROUP_OF_TABLE = { Settings: 'settings', System: 'settings', Users: 'users', Rooms: 'rooms', Cabinets: 'rooms', Zones: 'rooms' };
+var HISTORY_GROUP_OF_TABLE = { Settings: 'settings', System: 'settings', Users: 'users', Rooms: 'rooms', Cabinets: 'rooms', Zones: 'rooms', Reagents: 'reagents', ReagentTx: 'reagents' };
 var HISTORY_COLUMNS = ['when', 'userName', 'tableLabel', 'target', 'actionLabel', 'summary', 'id', 'at', 'userId', 'table', 'recordId', 'action', 'before', 'after'];
 var HISTORY_RAW_FROM = 'id';
 var HISTORY_LABELS = {
@@ -125,7 +178,7 @@ function columnsOf(table) {
 function keyForLabel(table, label) {
   var columns = columnsOf(table);
   for (var i = 0; i < columns.length; i++) {
-    if (COLUMN_LABELS[columns[i]] === label || columns[i] === label) return columns[i];
+    if (columnLabel(table, columns[i]) === label || columns[i] === label) return columns[i];
   }
   return null;
 }
@@ -142,8 +195,8 @@ function historyGroupFor(table, action) {
   return HISTORY_GROUP_OF_TABLE[table] || 'other';
 }
 
-var BOOLEAN_COLUMNS = ['deleted', 'locked', 'active', 'mustChangePassword', 'labOver100m2', 'isLab'];
-var NUMBER_COLUMNS = ['rows', 'cols', 'row', 'col'];
+var BOOLEAN_COLUMNS = ['deleted', 'locked', 'active', 'mustChangePassword', 'labOver100m2', 'isLab', 'hazardManual', 'poison', 'banned', 'permitted', 'restricted'];
+var NUMBER_COLUMNS = ['rows', 'cols', 'row', 'col', 'concentration', 'stock', 'amount', 'price'];
 
 // Never copied into the audit log.
 var SECRET_COLUMNS = ['salt', 'hash'];
