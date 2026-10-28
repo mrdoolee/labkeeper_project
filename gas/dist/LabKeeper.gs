@@ -257,7 +257,10 @@ function kecoByCas(casNo) {
   }
   var items = data && data.body && data.body.items;
   if (!Array.isArray(items)) throw lookupFailed();
-  return items;
+  // searchNm may match partially; keep only this CAS No.
+  return items.filter(function (it) {
+    return String(it.casNo || '').trim() === casNo;
+  });
 }
 
 function kecoName(item) {

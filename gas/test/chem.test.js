@@ -122,6 +122,17 @@ describe('chem.info', () => {
     })
   })
 
+  test('rows for another CAS No. (a partial match) are left out', () => {
+    const other = { casNo: '150-00-0', sbstnNmKor: '다른 물질', mlcfrm: 'X', typeList: [{ sbstnClsfTypeNm: '금지물질', contInfo: '다른 물질' }] }
+    const body = JSON.parse(KECO_HCL)
+    body.body.items.unshift(other)
+    route('chemSbstnList', JSON.stringify(body))
+    const info = call('chem.info', { casNo: '7647-01-0' }).data
+    expect(info.name).toBe('염화 수소')
+    expect(info.classes.map((c) => c.type)).not.toContain('금지물질')
+    expect(call('chem.search', { query: '7647-01-0' }).data.items.map((i) => i.casNo)).toEqual(['7647-01-0', '7647-01-0'])
+  })
+
   test('a CAS No. KECO does not know is not found', () => {
     route('chemSbstnList', KECO_EMPTY)
     expect(call('chem.info', { casNo: '7647-01-0' }).data).toEqual({ found: false })

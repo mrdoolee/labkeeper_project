@@ -185,8 +185,19 @@ describe('finding the chemical info (data.go.kr)', () => {
     await userEvent.type(screen.getByLabelText('기초 재고량 (mL)'), '500')
     await userEvent.click(screen.getByRole('button', { name: '등록' }))
     expect(fake.called('reagents.create')[0]).toMatchObject({
-      values: { casNo: '50-00-0', formula: 'CH2O', toxic: '해당', accidentPrep: '해당 없음', restricted: true, banned: false, hazardManual: false },
+      values: { casNo: '50-00-0', formula: 'CH2O', toxic: '해당', accidentPrep: '해당 없음', restricted: true, banned: false, hazardManual: true },
     })
+  })
+
+  test('typing the CAS No. by hand also clears the ticks the API set', async () => {
+    fake.chem.items = [{ name: '포르말린', casNo: '50-00-0' }]
+    fake.chem.info['50-00-0'] = FORMALDEHYDE
+    renderAt('/reagents/new')
+    await userEvent.type(await screen.findByLabelText('약품명'), '포르말린')
+    await findAndPick('포르말린 · 50-00-0')
+    expect(screen.getByLabelText('제한물질')).toBeChecked()
+    await userEvent.clear(screen.getByLabelText('CAS No.'))
+    expect(screen.getByLabelText('제한물질')).not.toBeChecked()
   })
 
   test('with no name it searches by the CAS No. and fills the name', async () => {

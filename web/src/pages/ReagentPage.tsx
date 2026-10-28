@@ -174,10 +174,14 @@ function ReagentForm({
   const [lookup, setLookup] = useState<Lookup>(null)
   const set = <K extends keyof Form>(key: K, value: Form[K]) => {
     if (key === 'unit') onUnitChange?.(value as Form['unit'])
-    // Typing a CAS No. by hand drops what 찾기 found.
+    // Typing a CAS No. by hand drops what 찾기 found, and the ticks it set.
     const kept = key === 'casNo' ? null : lookup
+    const dropped = key === 'casNo' && activeClasses(form, lookup) !== null
     if (key === 'casNo') setLookup(null)
-    setForm((f) => (key === 'casNo' || key === 'concentration' ? withJudgment({ ...f, [key]: value }, kept) : { ...f, [key]: value }))
+    setForm((f) => {
+      const next = dropped ? { ...f, [key]: value, banned: false, permitted: false, restricted: false } : { ...f, [key]: value }
+      return key === 'casNo' || key === 'concentration' ? withJudgment(next, kept) : next
+    })
   }
   function applyFound(candidate: ChemCandidate, info: ChemInfo) {
     const next: Lookup = { casNo: candidate.casNo, classes: info.found ? info.classes : null }
@@ -205,7 +209,8 @@ function ReagentForm({
       aria-label="시약 정보"
       onSubmit={(e: FormEvent) => {
         e.preventDefault()
-        onSubmit(form)
+        // A judgment from 찾기 is kept as is later: the edit page only knows the 46-substance table.
+        onSubmit(classes && !form.hazardManual ? { ...form, hazardManual: true } : form)
       }}
     >
       <div className="form-grid">
@@ -281,7 +286,7 @@ function ReagentForm({
         </div>
         {form.hazardManual ? (
           <p className="hint">
-            직접 고른 판정입니다.{' '}
+            자동 판정(46종 표)을 따르지 않는 판정입니다(직접 고름 또는 공공데이터로 찾음).{' '}
             <button type="button" onClick={() => setForm((f) => withJudgment({ ...f, hazardManual: false }, lookup))}>
               자동 판정으로
             </button>
