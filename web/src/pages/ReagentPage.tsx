@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import type { ChemCandidate, ChemClass, ChemInfo } from '../api/chem'
 import { reagentsApi, type Reagent, type ReagentInput } from '../api/reagents'
+import { ChemFinder } from '../components/ChemFinder'
 import { ErrorMessage, Field, SelectField, errorText } from '../components/Field'
 import { HazardBadges } from '../components/HazardBadges'
 import { HistoryButton } from '../components/HistoryDialog'
 import { PlacePicker } from '../components/PlacePicker'
 import { TxDialog } from '../components/TxDialog'
 import { useBusy } from '../components/useBusy'
+import { judgeFromClasses } from '../domain/chemLookup'
 import { isValidCas, judgeHazard, type HazardStatus } from '../domain/hazard'
 import { runningBalances, schoolYearOf, schoolYearRange, todayKst, type TxRow } from '../domain/ledger'
 import { reagentLabel } from '../domain/location'
@@ -87,10 +90,28 @@ function inputOf(f: Form): Partial<ReagentInput> {
   } as Partial<ReagentInput>
 }
 
-function withJudgment(f: Form): Form {
-  if (f.hazardManual) return f
+/** Info found with 찾기 for one CAS No.; classes null when KECO does not know it. */
+type Lookup = { casNo: string; classes: ChemClass[] | null } | null
+
+/** The found info (API) wins over the 46-substance table while its CAS No. is kept. */
+function activeClasses(f: Form, lookup: Lookup): ChemClass[] | null {
+  return lookup && lookup.casNo === f.casNo.trim() ? lookup.classes : null
+}
+
+function withJudgment(f: Form, lookup: Lookup = null): Form {
   const c = f.concentration.trim() === '' ? null : Number(f.concentration)
-  return { ...f, ...judgeHazard(f.casNo, Number.isFinite(c) ? c : null) }
+  const concentration = Number.isFinite(c) ? c : null
+  const classes = activeClasses(f, lookup)
+  if (classes) {
+    const { banned, permitted, restricted, ...hazard } = judgeFromClasses(classes, concentration)
+    return { ...f, banned, permitted, restricted, ...(f.hazardManual ? {} : hazard) }
+  }
+  if (f.hazardManual) return f
+  return { ...f, ...judgeHazard(f.casNo, concentration) }
+}
+
+function classLine(k: ChemClass): string {
+  return (k.content ? `${k.type}: ${k.content}` : k.type) + (k.exception ? ` (참고: ${k.exception})` : '')
 }
 
 const KIND_LABEL = {
@@ -150,10 +171,31 @@ function ReagentForm({
   children?: ReactNode
 }) {
   const [form, setForm] = useState(initial)
+  const [lookup, setLookup] = useState<Lookup>(null)
   const set = <K extends keyof Form>(key: K, value: Form[K]) => {
     if (key === 'unit') onUnitChange?.(value as Form['unit'])
-    setForm((f) => (key === 'casNo' || key === 'concentration' ? withJudgment({ ...f, [key]: value }) : { ...f, [key]: value }))
+    // Typing a CAS No. by hand drops what 찾기 found.
+    const kept = key === 'casNo' ? null : lookup
+    if (key === 'casNo') setLookup(null)
+    setForm((f) => (key === 'casNo' || key === 'concentration' ? withJudgment({ ...f, [key]: value }, kept) : { ...f, [key]: value }))
   }
+  function applyFound(candidate: ChemCandidate, info: ChemInfo) {
+    const next: Lookup = { casNo: candidate.casNo, classes: info.found ? info.classes : null }
+    setLookup(next)
+    setForm((f) =>
+      withJudgment(
+        {
+          ...f,
+          casNo: candidate.casNo,
+          formula: info.found && info.formula ? info.formula : f.formula,
+          name: f.name.trim() ? f.name : (info.found && info.name) || candidate.name,
+        },
+        next,
+      ),
+    )
+  }
+  const classes = activeClasses(form, lookup)
+  const missing = lookup !== null && lookup.classes === null && lookup.casNo === form.casNo.trim()
   const casBad = form.casNo.trim() !== '' && !isValidCas(form.casNo.trim())
   const unknown = form.toxic === '판정 불가' || form.accidentPrep === '판정 불가'
 
@@ -206,10 +248,11 @@ function ReagentForm({
         <Field label="제조사" value={form.maker} onChange={(e) => set('maker', e.target.value)} maxLength={100} />
         <Field label="구입처" value={form.supplier} onChange={(e) => set('supplier', e.target.value)} maxLength={100} />
       </div>
+      {isNew && <ChemFinder name={form.name} casNo={form.casNo} onPick={applyFound} />}
       {casBad && <p className="error">CAS No. 형식이나 검사 숫자가 맞지 않습니다.</p>}
 
       <fieldset className="hazard-box">
-        <legend>유해화학물질 판정 (경기 부록9 기준농도)</legend>
+        <legend>유해화학물질 판정 ({classes ? '화학물질안전원 고시' : '경기 부록9 기준농도'})</legend>
         <div className="form-grid">
           <SelectField
             label="유독물질"
@@ -239,13 +282,19 @@ function ReagentForm({
         {form.hazardManual ? (
           <p className="hint">
             직접 고른 판정입니다.{' '}
-            <button type="button" onClick={() => setForm((f) => withJudgment({ ...f, hazardManual: false }))}>
+            <button type="button" onClick={() => setForm((f) => withJudgment({ ...f, hazardManual: false }, lookup))}>
               자동 판정으로
             </button>
           </p>
         ) : (
           <p className="hint">CAS No.와 농도로 자동 판정합니다. 바꾸면 직접 고른 판정으로 저장됩니다.</p>
         )}
+        {classes && (
+          <ul className="hint chem-basis" aria-label="판정 근거">
+            {classes.length ? classes.map((k) => <li key={classLine(k)}>{classLine(k)}</li>) : <li>지정된 분류가 없습니다.</li>}
+          </ul>
+        )}
+        {missing && <p className="hint">환경공단 정보에 없는 물질이라 46종 표로 판정합니다.</p>}
         {unknown && <p className="hint">기준표에 없는 물질입니다. 화학물질정보처리시스템(kreach.me.go.kr)에서 확인한 뒤 직접 골라 주세요.</p>}
       </fieldset>
 

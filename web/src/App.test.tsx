@@ -17,7 +17,7 @@ type Handler = (payload: Record<string, unknown>, url?: string | null) => unknow
 
 const A = 'https://script.google.com/macros/s/AKfyA/exec'
 const B = 'https://script.google.com/macros/s/AKfyB/exec'
-const READY = { name: 'LabKeeper', apiVersion: 4, needsSetup: false, copied: false, closed: false, closedNote: '', schoolName: '청주중학교', managerName: '김운영' }
+const READY = { name: 'LabKeeper', apiVersion: 5, needsSetup: false, copied: false, closed: false, closedNote: '', schoolName: '청주중학교', managerName: '김운영' }
 
 // system.info answers READY unless a test says otherwise.
 function serve(handlers: Record<string, Handler | unknown>) {

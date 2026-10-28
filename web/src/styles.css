@@ -786,6 +786,26 @@ a.button.primary:hover {
   margin-left: 4px;
 }
 
+.chem-finder .toolbar {
+  margin-bottom: 4px;
+}
+
+.chem-candidates {
+  list-style: none;
+  margin: 0 0 var(--space);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.chem-basis {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
 .place-picker {
   display: flex;
   flex-wrap: wrap;

@@ -121,6 +121,125 @@ describe('new reagent', () => {
   })
 })
 
+describe('finding the chemical info (data.go.kr)', () => {
+  const KMNO4 = {
+    found: true, casNo: '7722-64-7', name: '과망간산 칼륨', formula: 'KMnO4',
+    classes: [
+      { type: '인체등유해성물질', content: '인체급성유해성 : 5%, 생태유해성 : 2.5%', exception: '' },
+      { type: '사고대비물질', content: '과망간산 칼륨 및 이를 98% 이상 함유한 혼합물', exception: '' },
+    ],
+  }
+  const FORMALDEHYDE = {
+    found: true, casNo: '50-00-0', name: '포르말린', formula: 'CH2O',
+    classes: [
+      { type: '인체등유해성물질', content: '인체급성유해성 : 1%, 인체만성유해성 : 0.1%', exception: '' },
+      { type: '제한물질', content: '폼알데하이드 및 이를 1% 이상 함유한 혼합물', exception: '가구용 무늬목' },
+    ],
+  }
+
+  async function findAndPick(pick: string) {
+    await userEvent.click(screen.getByRole('button', { name: '찾기' }))
+    await userEvent.click(await screen.findByRole('button', { name: pick }))
+  }
+
+  test('a picked substance fills CAS No. and formula and is judged by the API, the ecological limit included', async () => {
+    fake.chem.items = [{ name: '과망간산칼륨', casNo: '7722-64-7' }]
+    fake.chem.info['7722-64-7'] = KMNO4
+    renderAt('/reagents/new')
+    await userEvent.type(await screen.findByLabelText('약품명'), '과망간산칼륨')
+    await userEvent.type(screen.getByLabelText('농도(%)'), '3')
+    await findAndPick('과망간산칼륨 · 7722-64-7')
+    expect(fake.called('chem.search')).toEqual([{ query: '과망간산칼륨' }])
+    expect(screen.getByLabelText('CAS No.')).toHaveValue('7722-64-7')
+    expect(screen.getByLabelText('화학식')).toHaveValue('KMnO4')
+    expect(screen.getByLabelText('약품명')).toHaveValue('과망간산칼륨')
+    // the 46-substance table would say 해당 없음 below 5%; the API's 2.5% (생태) wins
+    expect(screen.getByLabelText('유독물질')).toHaveValue('해당')
+    expect(screen.getByLabelText('사고대비물질')).toHaveValue('해당 없음')
+    expect(screen.getByText(/화학물질안전원 고시/)).toBeInTheDocument()
+    expect(screen.getByText('인체등유해성물질: 인체급성유해성 : 5%, 생태유해성 : 2.5%')).toBeInTheDocument()
+
+    await userEvent.clear(screen.getByLabelText('농도(%)'))
+    await userEvent.type(screen.getByLabelText('농도(%)'), '2')
+    expect(screen.getByLabelText('유독물질')).toHaveValue('해당 없음')
+    await userEvent.clear(screen.getByLabelText('농도(%)'))
+    await userEvent.type(screen.getByLabelText('농도(%)'), '4')
+    expect(screen.getByLabelText('유독물질')).toHaveValue('해당')
+
+    // typing another CAS No. drops the found info and goes back to the table
+    await userEvent.clear(screen.getByLabelText('CAS No.'))
+    await userEvent.type(screen.getByLabelText('CAS No.'), '7722-64-7')
+    expect(screen.getByLabelText('유독물질')).toHaveValue('해당 없음')
+    expect(screen.queryByText(/화학물질안전원 고시/)).not.toBeInTheDocument()
+  })
+
+  test('restricted and the like are ticked from the API and saved', async () => {
+    fake.chem.items = [{ name: '포르말린', casNo: '50-00-0' }]
+    fake.chem.info['50-00-0'] = FORMALDEHYDE
+    renderAt('/reagents/new')
+    await userEvent.type(await screen.findByLabelText('약품명'), '포르말린')
+    await userEvent.type(screen.getByLabelText('농도(%)'), '37')
+    await findAndPick('포르말린 · 50-00-0')
+    expect(screen.getByLabelText('제한물질')).toBeChecked()
+    expect(screen.getByText('제한물질: 폼알데하이드 및 이를 1% 이상 함유한 혼합물 (참고: 가구용 무늬목)')).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('기초 재고량 (mL)'), '500')
+    await userEvent.click(screen.getByRole('button', { name: '등록' }))
+    expect(fake.called('reagents.create')[0]).toMatchObject({
+      values: { casNo: '50-00-0', formula: 'CH2O', toxic: '해당', accidentPrep: '해당 없음', restricted: true, banned: false, hazardManual: false },
+    })
+  })
+
+  test('with no name it searches by the CAS No. and fills the name', async () => {
+    fake.chem.items = [{ name: '포르말린', casNo: '50-00-0' }]
+    fake.chem.info['50-00-0'] = FORMALDEHYDE
+    renderAt('/reagents/new')
+    await userEvent.type(await screen.findByLabelText('CAS No.'), '50-00-0')
+    await findAndPick('포르말린 · 50-00-0')
+    expect(fake.called('chem.search')).toEqual([{ query: '50-00-0' }])
+    expect(screen.getByLabelText('약품명')).toHaveValue('포르말린')
+  })
+
+  test('nothing found says how to search again', async () => {
+    renderAt('/reagents/new')
+    await userEvent.type(await screen.findByLabelText('약품명'), '과망가니즈산 칼륨')
+    await userEvent.click(screen.getByRole('button', { name: '찾기' }))
+    expect(await screen.findByText('찾은 물질이 없습니다. 다른 이름(예: 옛 이름)이나 CAS No.로 찾아 보세요.')).toBeInTheDocument()
+  })
+
+  test('without a name or CAS No. there is nothing to search', async () => {
+    renderAt('/reagents/new')
+    await userEvent.click(await screen.findByRole('button', { name: '찾기' }))
+    expect(screen.getByText('약품명이나 CAS No.를 먼저 입력해 주세요.')).toBeInTheDocument()
+    expect(fake.called('chem.search')).toEqual([])
+  })
+
+  test('a server message (no key) is shown as it is', async () => {
+    const { ApiError } = await import('../api/client')
+    fake.chem.error = new ApiError('NO_API_KEY', '공공데이터 인증키가 없습니다. 운영 교사가 시트 메뉴 LabKeeper → 공공데이터 인증키 입력에서 넣어 주세요.')
+    renderAt('/reagents/new')
+    await userEvent.type(await screen.findByLabelText('약품명'), '황산')
+    await userEvent.click(screen.getByRole('button', { name: '찾기' }))
+    expect(await screen.findByText(/공공데이터 인증키 입력에서 넣어 주세요/)).toBeInTheDocument()
+  })
+
+  test('a substance KECO does not know keeps the table judgment and says so', async () => {
+    fake.chem.items = [{ name: '염화 수소', casNo: '7647-01-0' }]
+    renderAt('/reagents/new')
+    await userEvent.type(await screen.findByLabelText('약품명'), '염화 수소')
+    await userEvent.type(screen.getByLabelText('농도(%)'), '35')
+    await findAndPick('염화 수소 · 7647-01-0')
+    expect(screen.getByLabelText('CAS No.')).toHaveValue('7647-01-0')
+    expect(screen.getByLabelText('유독물질')).toHaveValue('해당')
+    expect(screen.getByText('환경공단 정보에 없는 물질이라 46종 표로 판정합니다.')).toBeInTheDocument()
+  })
+
+  test('the detail page has no 찾기', async () => {
+    renderAt('/reagents/hcl')
+    await screen.findByRole('heading', { name: /염화 수소/ })
+    expect(screen.queryByRole('button', { name: '찾기' })).not.toBeInTheDocument()
+  })
+})
+
 describe('reagent detail', () => {
   test('shows this school year\'s records with before and after amounts', async () => {
     renderAt('/reagents/hcl')

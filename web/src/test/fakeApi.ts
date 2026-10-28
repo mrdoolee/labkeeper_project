@@ -9,6 +9,8 @@ export function createFakeApi(seed: Record<string, Row[]> = {}) {
   let settings: Record<string, unknown> = { region: 'chungbuk', schoolName: '청주중학교' }
   let next = 1
   const calls: { action: string; payload: Record<string, unknown> }[] = []
+  // data.go.kr lookups (chem.search / chem.info): set by each test.
+  const chem: { items: unknown[]; info: Record<string, unknown>; error: ApiError | null } = { items: [], info: {}, error: null }
 
   function stamp(values: Record<string, unknown>): Row {
     const n = next++
@@ -143,6 +145,12 @@ export function createFakeApi(seed: Record<string, Row[]> = {}) {
         return [{ id: 'u1', name: '김운영' }]
       case 'audit.list':
         return []
+      case 'chem.search':
+        if (chem.error) throw chem.error
+        return { items: chem.items }
+      case 'chem.info':
+        if (chem.error) throw chem.error
+        return chem.info[p.casNo as string] ?? { found: false }
       default:
         throw new Error('unexpected action ' + action)
     }
@@ -163,5 +171,5 @@ export function createFakeApi(seed: Record<string, Row[]> = {}) {
     return handle(action, payload)
   }
 
-  return { tables, calls, hold, handle: handleWithHold, called: (action: string) => calls.filter((c) => c.action === action).map((c) => c.payload) }
+  return { tables, calls, chem, hold, handle: handleWithHold, called: (action: string) => calls.filter((c) => c.action === action).map((c) => c.payload) }
 }

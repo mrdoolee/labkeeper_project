@@ -102,6 +102,12 @@ npx playwright install chromium
 - 설계·계획: [specs/2026-10-27-m2-reagents-and-ledger-design.md](superpowers/specs/2026-10-27-m2-reagents-and-ledger-design.md), [plans/2026-10-27-m2-reagents-and-ledger.md](superpowers/plans/2026-10-27-m2-reagents-and-ledger.md)
 - 화면 스크린샷: [screenshots/m2](screenshots/m2)
 
+### 1-6-1. 시약 등록 때 화학물질 정보 찾기 (2026-10-29)
+- 새 시약 등록 화면의 "찾기": 약품명(없으면 CAS No.)으로 data.go.kr에서 찾아 CAS No.·화학식·유독물질·사고대비물질·금지/허가/제한물질을 채움
+- 학교마다 운영 교사가 data.go.kr 인증키를 받아 시트 메뉴 "공공데이터 인증키 입력"에 넣음. API_VERSION 5
+- 찾은 정보(화학물질안전원 현재 고시)가 46종 표보다 우선. 46종 표와 비교하니 42종 같고 4종(벤젠·염화 은·과망가니즈산 칼륨·구리)이 다름
+- 설계: [specs/2026-10-29-chem-lookup-design.md](superpowers/specs/2026-10-29-chem-lookup-design.md)
+
 ### 1-7. 개발 환경(하네스)
 - 세션 시작 훅 두 개(모두 Node라 Windows PC·클라우드 공통, Python 불필요): [claude-skills.md](claude-skills.md)
   - `.claude/hooks/install-deps.mjs`: `gas/`, `web/`에 패키지가 없거나 바뀌었으면 `npm install` → 테스트·린트·빌드·e2e를 바로 돌릴 수 있음
@@ -116,6 +122,7 @@ npx playwright install chromium
 1. https://labkeeper-trdooleel.vercel.app/ 에서 시약 몇 개를 등록하고(한 건 + 엑셀), 사용 기록을 남겨 보기
 2. 설정의 "장부 양식 지역"을 바꿔 가며 대장을 실제로 인쇄해 매뉴얼 양식과 비교(한 장에 들어가는 줄 수, 글자 크기)
 3. 시트의 시약·시약 수불·시약 이력 탭이 읽기 쉬운지 보기
+4. 화학물질 정보 찾기: 시트 메뉴 LabKeeper → 공공데이터 인증키 입력에 data.go.kr 일반 인증키를 넣고, 새 시약 등록에서 "찾기"를 눌러 보기
 
 **M1 때 할 일** (끝남)
 

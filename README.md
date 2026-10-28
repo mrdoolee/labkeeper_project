@@ -70,6 +70,7 @@
 - [x] 시트 탭 한국어화와 분야별 이력 탭 (docs/superpowers/specs/2026-10-24-korean-sheet-tabs-design.md)
 - [ ] 실제 환경 확인: 개발용 시트에 새 코드 배포 → 시트 메뉴(학교 정보·첫 계정) → 공용 화면 연결
 - [x] M2 시약과 대장: 시약 등록(한 건·엑셀), 유독물질·사고대비물질 판정, 사용·입고 기록, 화학약품 관리대장 충북·서울·경기 출력, 위치 찾기 (docs/superpowers/specs/2026-10-27-m2-reagents-and-ledger-design.md)
+- [x] 시약 등록 때 화학물질 정보 찾기(data.go.kr, 학교별 인증키) (docs/superpowers/specs/2026-10-29-chem-lookup-design.md)
 - [ ] M2 실제 환경 확인: 선생님이 개발용 시트로 써 보고 세 지역 대장을 인쇄해 양식과 비교
 - [ ] M3 폐수와 점검
 - [ ] M4 MSDS와 경고표지
