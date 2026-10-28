@@ -64,7 +64,7 @@ test('start fresh clears every data row and un-flags the copy', () => {
   gas.fakes.setSpreadsheetId('sheet-B')
   expect(gas.call('system.info').data.copied).toBe(true)
   expect(gas.ctx.sheetStartFresh()).toBe(true)
-  expect(gas.call('system.info').data).toEqual({ name: 'LabKeeper', apiVersion: 4, needsSetup: true, copied: false, template: false, closed: false, closedNote: '', schoolName: '', managerName: '' })
+  expect(gas.call('system.info').data).toEqual({ name: 'LabKeeper', apiVersion: 5, needsSetup: true, copied: false, template: false, closed: false, closedNote: '', schoolName: '', managerName: '' })
   for (const name of ['Users', 'Settings', 'Rooms']) expect(gas.sheet(name).length).toBe(1)
   expect(gas.sheet('Rooms')[0]).toContain('이름')
   // the history keeps one line saying the sheet was started fresh

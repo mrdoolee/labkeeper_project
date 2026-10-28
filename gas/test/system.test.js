@@ -9,7 +9,7 @@ beforeEach(() => {
 })
 
 test('reports version, setup need and school name on an empty sheet', () => {
-  expect(gas.call('system.info').data).toEqual({ name: 'LabKeeper', apiVersion: 4, needsSetup: true, copied: false, template: false, closed: false, closedNote: '', schoolName: '', managerName: '' })
+  expect(gas.call('system.info').data).toEqual({ name: 'LabKeeper', apiVersion: 5, needsSetup: true, copied: false, template: false, closed: false, closedNote: '', schoolName: '', managerName: '' })
 })
 
 test('after an admin and a school name exist', () => {

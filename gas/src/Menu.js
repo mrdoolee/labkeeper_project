@@ -159,6 +159,7 @@ function sheetMakeTemplate(confirmWord) {
     var props = PropertiesService.getScriptProperties();
     props.deleteProperty(OWNER_PROP);
     props.deleteProperty(CLOSED_PROP);
+    props.deleteProperty(DATA_KEY_PROP);
     props.setProperty(TEMPLATE_PROP, String(SpreadsheetApp.getActive().getId()));
     return true;
   });
@@ -176,6 +177,7 @@ function sheetStartFresh() {
     var props = PropertiesService.getScriptProperties();
     props.setProperty(OWNER_PROP, id);
     props.deleteProperty(CLOSED_PROP);
+    props.deleteProperty(DATA_KEY_PROP); // a new school uses its own key
     dbAudit(sheetActor(), 'System', id, 'startFresh', null, null);
     return true;
   });
@@ -222,6 +224,7 @@ function onOpen() {
     .addItem('학교 정보 입력', 'menuSchoolInfo')
     .addItem('운영 교사 계정 만들기', 'menuCreateAdmin')
     .addItem('운영 교사 비밀번호 초기화', 'menuResetAdminPassword')
+    .addItem('공공데이터 인증키 입력', 'menuDataKey')
     .addSeparator()
     .addItem('시트 구조 점검', 'menuCheckStructure')
     .addItem('사본을 새 학교 시트로 시작', 'menuStartFresh')
@@ -418,13 +421,28 @@ function menuStartFresh() {
   }
 }
 
+function menuDataKey() {
+  var ui = SpreadsheetApp.getUi();
+  var res = ui.prompt(
+    '공공데이터 인증키 입력',
+    (dataKeyStatus() ? '지금 인증키가 들어 있습니다.' : '아직 인증키가 없습니다.') +
+      '\n\ndata.go.kr 마이페이지의 일반 인증키를 붙여 넣으세요(Encoding·Decoding 어느 쪽이든 됩니다).' +
+      '\n「물질안전보건자료 조회」와 「화학물질 정보 조회」 두 서비스를 활용 신청해야 합니다.' +
+      '\n빈칸으로 확인을 누르면 인증키를 지웁니다.',
+    ui.ButtonSet.OK_CANCEL,
+  );
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  ui.alert(sheetSetDataKey(res.getResponseText()) ? '인증키를 저장했습니다. 웹 화면의 시약 등록에서 "찾기"를 쓸 수 있습니다.' : '인증키를 지웠습니다.');
+}
+
 function menuGuide() {
   SpreadsheetApp.getUi().alert(
     'LabKeeper 사용 가이드',
     '1. 확장 프로그램 → Apps Script → 배포 → 새 배포 → 웹 앱 (실행: 나, 액세스: 모든 사용자)으로 배포하고 URL을 복사합니다.\n' +
       '2. LabKeeper → 운영 교사 계정 만들기에서 첫 계정을 만듭니다.\n' +
       '3. LabKeeper 웹 화면에서 "스프레드시트 연결"에 URL을 붙여 넣고 로그인합니다.\n' +
-      '4. 계정 관리에서 선생님 계정을 만들고, "우리 학교 접속 링크"와 임시 비밀번호를 전합니다.\n\n' +
+      '4. 계정 관리에서 선생님 계정을 만들고, "우리 학교 접속 링크"와 임시 비밀번호를 전합니다.\n' +
+      '5. (선택) data.go.kr에서 「물질안전보건자료 조회」와 「화학물질 정보 조회」를 활용 신청하고 일반 인증키를 LabKeeper → 공공데이터 인증키 입력에 넣으면, 시약 등록 때 "찾기"를 쓸 수 있습니다.\n\n' +
       '코드를 업데이트할 때: 새 코드를 붙여 넣고 배포 → 배포 관리 → 수정 → 새 버전으로 배포합니다(주소가 바뀌지 않습니다).\n' +
       '1행 머리글 이름은 바꾸지 마세요.',
     SpreadsheetApp.getUi().ButtonSet.OK,
